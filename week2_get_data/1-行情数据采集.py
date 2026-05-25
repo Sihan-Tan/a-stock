@@ -23,13 +23,14 @@
 import sys
 import os
 import time
-from datetime import date, timedelta
-from concurrent.futures import ThreadPoolExecutor, as_completed
+import math
+from datetime import date, timedelta, datetime
+from concurrent.futures import ThreadPoolExecutor
 
 from xtquant import xtdata
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from db_config import get_connection, execute_query
+from db_config import get_connection, execute_query, execute_update
 
 if sys.platform == 'win32' and hasattr(sys.stdout, 'reconfigure'):
     try:
@@ -50,7 +51,7 @@ SECTOR = '沪深A股'
 # 并行工作线程数，根据CPU核心数和网络IO情况调整
 NUM_WORKERS = 8
 # 默认起始日期（YYYYMMDD格式），当数据库中没有该股票数据时从此日期开始下载
-DATA_START = '20230101'
+DATA_START = '20240101'
 # 数据库写入最大重试次数，应对并发写入时的死锁场景
 DB_MAX_RETRIES = 5
 # 重试基础等待时间（秒），采用指数退避策略：base * 2^(attempt-1)
@@ -58,8 +59,88 @@ DB_RETRY_BASE_SLEEP = 0.2
 
 
 # ============================================================
+# 股票筛选
+# ============================================================
+
+# A股代码前缀范围（排除 ETF 51xxxx/159xxx、债券 11xxxx/12xxxx、基金 50xxxx 等）
+# SH: 主板600-605 + 科创板688-689 | SZ: 主板000-004 + 创业板300-301 | BJ: 北交所8xxxxx
+A_STOCK_SH_PREFIXES = set(list(range(600, 607)) + list(range(688, 691)))  # 主板600-605 + 科创板688-689
+A_STOCK_SZ_PREFIXES = set(list(range(0, 5)) + list(range(300, 303)))       # 主板000-004 + 创业板300-302
+A_STOCK_BJ_PREFIXES = set(range(800, 930))                                  # 北交所 8xxxxx ，9xxxxx
+
+
+def _is_a_stock(code):
+    """判断是否为A股股票，排除ETF/债券/基金等"""
+    if not code or '.' not in code:
+        return False
+    num_part = code.split('.')[0]
+    if len(num_part) != 6:
+        return False
+    try:
+        prefix = int(num_part[:3])
+    except ValueError:
+        return False
+    if code.endswith('.SH'):
+        return prefix in A_STOCK_SH_PREFIXES
+    if code.endswith('.SZ'):
+        return prefix in A_STOCK_SZ_PREFIXES
+    if code.endswith('.BJ'):
+        return prefix in A_STOCK_BJ_PREFIXES
+    return False
+
+
+def _clean_delisted():
+    """
+    删除DB中已退市股票的数据。
+
+    通过 xtdata 查询退市板块，与 DB 中现有股票做交集，
+    找到已退市但仍有残余数据的股票并删除。
+
+    Returns:
+        int: 清理的股票数量
+    """
+    # 尝试多个可能的退市板块名称
+    delisted = set()
+    for sector_name in ['退市股票', '退市', '已退市', '退市板块']:
+        try:
+            codes = xtdata.get_stock_list_in_sector(sector_name)
+            if codes:
+                delisted.update(codes)
+        except Exception:
+            pass
+
+    if not delisted:
+        print("  未获取到退市股票列表（可能QMT版本不支持该板块名）")
+        return 0
+
+    # 与DB有数据的股票取交集
+    db_codes = {r['stock_code'] for r in execute_query(
+        "SELECT DISTINCT stock_code FROM trade_stock_daily"
+    )}
+    to_delete = delisted & db_codes
+
+    if not to_delete:
+        print(f"  DB中无退市股票残留")
+        return 0
+
+    print(f"  发现 {len(to_delete)} 只已退市股票: {sorted(to_delete)[:10]}{'...' if len(to_delete) > 10 else ''}")
+
+    for code in to_delete:
+        execute_update("DELETE FROM trade_stock_daily WHERE stock_code = %s", (code,))
+
+    print(f"  已清理 {len(to_delete)} 只退市股票的全部数据")
+    return len(to_delete)
+
+
+# ============================================================
 # 数据库辅助
 # ============================================================
+
+def _add_one_day(date_str):
+    """给YYYYMMDD日期字符串加一天，返回YYYYMMDD字符串"""
+    d = datetime.strptime(date_str, '%Y%m%d')
+    return (d + timedelta(days=1)).strftime('%Y%m%d')
+
 
 def get_existing_latest_dates():
     """
@@ -106,144 +187,171 @@ INSERT_SQL = """
 """
 
 
-def _get_float_shares(stock_code):
+def _batch_get_float_shares(stock_codes):
     """
-    获取流通股本（股），用于计算换手率。
+    批量获取流通股本（股），用于计算换手率。
 
-    换手率 = 成交量(股) / 流通股本(股) * 100%
-    成交量从 xtdata 获取时单位是"手"（1手=100股），需要先转换为股。
-
-    Args:
-        stock_code: 股票代码，如 "600519.SH"
+    一次性拉取所有需要更新的股票的流通股本，避免5000次单独API调用。
+    流通股本是静态数据（仅在增发/回购时变动），不需要每次更新。
 
     Returns:
-        int: 流通股本数（股），获取失败返回 0
+        dict: {stock_code: float_shares}
     """
-    try:
-        # get_instrument_detail 返回股票的详细信息字典
-        detail = xtdata.get_instrument_detail(stock_code)
-        if detail:
-            # 优先取 NegotiableVolume（流通股本），失败时回退到 TotalVolume（总股本）
-            neg = detail.get('NegotiableVolume') or detail.get('TotalVolume') or 0
-            if neg > 0:
-                return neg
-    except Exception:
-        pass
-    return 0
+    result = {}
+    for code in stock_codes:
+        try:
+            detail = xtdata.get_instrument_detail(code)
+            if detail:
+                neg = detail.get('NegotiableVolume') or detail.get('TotalVolume') or 0
+                if neg > 0:
+                    result[code] = neg
+                    continue
+        except Exception:
+            pass
+        result[code] = 0
+    return result
 
 
-def download_and_save(stock_code, start_date):
-    """
-    增量下载单只股票的日线数据并写入MySQL。
-
-    工作流程：
-      1. 调用 xtdata.download_history_data() 将数据下载到本地缓存
-      2. 调用 xtdata.get_market_data_ex() 从本地缓存读取数据
-      3. 计算换手率等衍生指标
-      4. 写入 MySQL（带重试机制应对死锁）
-
-    Args:
-        stock_code: 股票代码，如 "600519.SH"
-        start_date: 起始日期字符串，格式 "YYYYMMDD"
-
-    Returns:
-        tuple: (stock_code, count)
-            count > 0 表示成功写入的行数
-            count = 0 表示无新数据
-            count = -1 表示写入失败
-    """
-    print(f"开始下载 {stock_code} 从 {start_date} 开始的数据")
-    # download_history_data 是 xtquant 核心API：
-    # 它会将历史行情数据下载到本地缓存目录，后续的 get_market_data_ex 从缓存读取
-    # period='1d' 表示日线数据
-    xtdata.download_history_data(stock_code, '1d', start_time=start_date)
-
-    # get_market_data_ex 从本地缓存读取数据
-    # dividend_type='front' 表示使用前复权价格（考虑分红除权，调整历史价格）
-    # 前复权 vs 后复权：前复权保持当前价格不变调整历史价格，后复权保持历史价格不变调整当前价格
-    data = xtdata.get_market_data_ex(
-        field_list=['open', 'high', 'low', 'close', 'volume', 'amount'],
-        stock_list=[stock_code],
-        period='1d',
-        start_time=start_date,
-        dividend_type='front',
-    )
-
-    if not data or stock_code not in data:
-        print(f"未获取到 {stock_code} 的数据")
-        return stock_code, 0
-
-    df = data[stock_code]
-    print(f"获取到 {stock_code} 的 {len(df)} 条数据")
-    if df is None or len(df) == 0:
-        return stock_code, 0
-
-    # 获取流通股本用于计算换手率
-    float_shares = _get_float_shares(stock_code)
-
-    rows = []
-    for idx, row in df.iterrows():
-        # xtdata的DataFrame索引格式为 '20250115' 这样的YYYYMMDD字符串
-        idx_str = str(idx)
-        if len(idx_str) >= 8:
-            # 将 YYYYMMDD 转为 MySQL 日期格式 YYYY-MM-DD
-            trade_date = f"{idx_str[:4]}-{idx_str[4:6]}-{idx_str[6:8]}"
-            vol = int(row['volume'])
-            # xtdata volume 单位是"手"(1手=100股)，流通股本单位是"股"
-            # 因此成交量(股) = 成交量(手) * 100
-            vol_shares = vol * 100
-            # 换手率 = 成交量(股) / 流通股本(股) * 100%
-            # 保留4位小数，如果流通股本为0或成交量为0则设为None
-            turnover = round(vol_shares / float_shares * 100, 4) if float_shares > 0 and vol > 0 else None
-            rows.append((
-                stock_code, trade_date,
-                float(row['open']), float(row['high']),
-                float(row['low']), float(row['close']),
-                vol, float(row['amount']),
-                turnover,
-            ))
-
-    if not rows:
-        print("没有数据需要写入")
-        return stock_code, 0
-
-    # 写入数据库，带指数退避重试机制
-    # 在高并发场景下，多个线程同时写入MySQL可能产生死锁(deadlock)，
-    # MySQL检测到死锁后会回滚其中一个事务并返回 1213 错误码。
+def _batch_write_to_db(rows):
+    """批量写入DB，带死锁重试"""
     for attempt in range(1, DB_MAX_RETRIES + 1):
         conn = None
         cursor = None
         try:
             conn = get_connection()
             cursor = conn.cursor()
-            # executemany 批量写入，比逐条 execute 效率高得多
             cursor.executemany(INSERT_SQL, rows)
             conn.commit()
-            print(f"成功写入 {len(rows)} 条数据到数据库")
-            return stock_code, len(rows)
+            return len(rows)
         except Exception as e:
             err_msg = str(e)
-            # 判断是否为死锁错误（MySQL Error 1213 = ER_LOCK_DEADLOCK）
             is_deadlock = ("1213" in err_msg) or ("Deadlock found" in err_msg)
             if conn:
-                conn.rollback()  # 回滚事务，释放锁
-
+                conn.rollback()
             if is_deadlock and attempt < DB_MAX_RETRIES:
-                # 指数退避：第一次等待0.2s，第二次0.4s，第三次0.8s...
-                # 这样设计是因为死锁通常是短暂的，稍后重试大概率成功
                 sleep_s = DB_RETRY_BASE_SLEEP * (2 ** (attempt - 1))
-                print(f"写入发生死锁，重试 {attempt}/{DB_MAX_RETRIES - 1}，等待 {sleep_s:.1f}s: {err_msg}")
+                print(f"  写入死锁，重试 {attempt}/{DB_MAX_RETRIES - 1}，等待 {sleep_s:.1f}s")
                 time.sleep(sleep_s)
                 continue
-
-            print(f"写入数据库失败: {err_msg}")
-            return stock_code, -1
+            print(f"  写入数据库失败: {err_msg}")
+            return -1
         finally:
-            # 确保连接和游标被关闭，避免连接泄漏
             if cursor:
                 cursor.close()
             if conn:
                 conn.close()
+    return -1
+
+
+def _nf(v):
+    """将 numpy nan 转为 None，MySQL 不接受 nan 值"""
+    if v is None:
+        return None
+    try:
+        if math.isnan(v):
+            return None
+    except TypeError:
+        pass
+    return float(v)
+
+
+def _process_batch(stock_codes, start_date, float_shares_map):
+    """
+    按 chunk 处理一组股票（相同 start_date 的分为一组）。
+
+    每 50 只为一个 chunk：下载 → 读取 → 入库 闭环完成后再处理下一批。
+    中途崩溃最多丢失当前 chunk 的 50 只数据，已入库的不受影响。
+
+    Returns:
+        (success_count, failed_codes)
+    """
+    DL_CHUNK_SIZE = 50
+    dl_workers = NUM_WORKERS * 2
+    total = len(stock_codes)
+    success = 0
+    failed = []
+    done = 0
+    t0 = time.time()
+
+    for i in range(0, total, DL_CHUNK_SIZE):
+        chunk = stock_codes[i:i + DL_CHUNK_SIZE]
+
+        # 1) 多线程下载当前 chunk
+        with ThreadPoolExecutor(max_workers=min(len(chunk), dl_workers)) as dl_executor:
+            dl_executor.map(lambda c: xtdata.download_history_data(c, '1d', start_time=start_date), chunk)
+
+        # 2) 批量读取当前 chunk
+        data = xtdata.get_market_data_ex(
+            field_list=['open', 'high', 'low', 'close', 'volume', 'amount'],
+            stock_list=chunk,
+            period='1d',
+            start_time=start_date,
+            dividend_type='front',
+        )
+
+        if not data:
+            done += len(chunk)
+            continue
+
+        # 3) 转换 + 入库
+        all_rows = []
+        pending = []
+
+        for code in chunk:
+            df = data.get(code)
+            if df is None or len(df) == 0:
+                continue
+
+            float_shares = float_shares_map.get(code, 0)
+            try:
+                idx_arr = df.index.values
+                open_arr = df['open'].values
+                high_arr = df['high'].values
+                low_arr = df['low'].values
+                close_arr = df['close'].values
+                vol_arr = df['volume'].values
+                amt_arr = df['amount'].values
+            except Exception:
+                failed.append(code)
+                continue
+
+            for j in range(len(df)):
+                idx_str = str(idx_arr[j])
+                if len(idx_str) < 8:
+                    continue
+                trade_date = f"{idx_str[:4]}-{idx_str[4:6]}-{idx_str[6:8]}"
+                vol = int(vol_arr[j])
+                vol_shares = vol * 100
+                turnover = round(vol_shares / float_shares * 100, 4) if float_shares > 0 and vol > 0 else None
+                all_rows.append((
+                    code, trade_date,
+                    _nf(open_arr[j]), _nf(high_arr[j]),
+                    _nf(low_arr[j]), _nf(close_arr[j]),
+                    vol, _nf(amt_arr[j]),
+                    turnover,
+                ))
+
+            pending.append(code)
+
+        if all_rows:
+            written = _batch_write_to_db(all_rows)
+            if written > 0:
+                success += len(pending)
+            else:
+                failed.extend(pending)
+
+        done += len(chunk)
+        elapsed = time.time() - t0
+        speed = done / elapsed if elapsed > 0 else 0
+        eta = (total - done) / speed if speed > 0 else 0
+        sys.stdout.write(
+            f"\r  进度 {min(done, total)}/{total} ({done*100/total:.0f}%) | "
+            f"入库 {success} 只 | {speed:.0f} 只/秒 | 剩余约 {eta:.0f}秒    "
+        )
+        sys.stdout.flush()
+
+    print()
+    return success, failed
 
 
 # ============================================================
@@ -256,7 +364,7 @@ def main():
     if TEST_MODE:
         print("[测试模式] 只采集贵州茅台")
     else:
-        print(f"[全量模式] 采集{SECTOR}, {NUM_WORKERS}线程并行")
+        print(f"[全量模式] 采集{SECTOR}, 下载{NUM_WORKERS * 2}线程 + 批量读取")
     print("=" * 60)
 
     print("\n连接QMT数据服务...")
@@ -274,8 +382,12 @@ def main():
         # get_stock_list_in_sector 获取指定板块的所有股票代码
         # 沪深A股板块包含上海主板、深圳主板、创业板、科创板等
         all_codes = xtdata.get_stock_list_in_sector(SECTOR)
-        # 过滤掉不含'.'的代码（如指数代码000001.SH保留，无效数据剔除）
         all_codes = [c for c in all_codes if '.' in str(c)]
+        # 过滤ETF/债券/基金等非股票代码
+        filtered_out = [c for c in all_codes if not _is_a_stock(c)]
+        all_codes = [c for c in all_codes if _is_a_stock(c)]
+        if filtered_out:
+            print(f"  过滤非股票代码 {len(filtered_out)} 只: {filtered_out[:5]}{'...' if len(filtered_out) > 5 else ''}")
         print(f"  共 {len(all_codes)} 只股票")
 
     # 批量查询DB中已有的最新日期
@@ -288,95 +400,66 @@ def main():
         sample_code = list(existing.keys())[0]
         print(f"示例: {sample_code} 最新日期为 {existing[sample_code]}")
 
-    # 今天的日期作为截止点：如果数据库中最新的日期 >= 今天，说明已是最新不需要更新
-    recent_cutoff = date.today().strftime('%Y%m%d')
+    # 用今天的日期推算最近交易日，跳过周末（周六-1天，周日-2天）
+    # 不用 max(existing)：中途失败会导致部分股票落后，不应以最超前的那只为基准
+    today = date.today()
+    w = today.weekday()  # 0=周一 ... 5=周六 6=周日
+    offset = w - 4 if w > 4 else 0  # 周六→2天前(周五), 周日→2天前(周五)
+    recent_cutoff = (today - timedelta(days=offset)).strftime('%Y%m%d')
 
-    tasks = []
+    # 按 start_date 分组，同一组内可批量下载
+    groups = {}  # {start_date: [codes]}
     skip_count = 0
     for code in all_codes:
         latest = existing.get(code)
         if latest and latest >= recent_cutoff:
-            # 数据库中已有今天的日线数据，跳过
             skip_count += 1
             continue
-        # 如果有历史数据则从最新日期的次日开始，否则从 DATA_START 开始
-        start = latest if latest else DATA_START
-        tasks.append((code, start))
+        start = _add_one_day(latest) if latest else DATA_START
+        groups.setdefault(start, []).append(code)
 
-    print(f"  需更新: {len(tasks)} 只, 跳过(今日已有数据): {skip_count} 只")
+    total = sum(len(v) for v in groups.values())
+    print(f"  需更新: {total} 只, 跳过(已是最近交易日): {skip_count} 只")
 
-    if not tasks:
+    if not groups:
         print("\n全部已是最新，无需更新")
         _print_summary()
         return
 
-    total = len(tasks)
-    total_rows = 0
+    # 预取所有待更新股票的流通股本
+    all_update_codes = [c for codes in groups.values() for c in codes]
+    print(f"预取流通股本 ({len(all_update_codes)} 只)...")
+    float_shares_map = _batch_get_float_shares(all_update_codes)
+    print(f"  获取到 {len(float_shares_map)} 只股票的流通股本")
+
     success_count = 0
     fail_list = []
     start_time = time.time()
 
-    # 数量较少时用串行（避免多线程开销），数量大时用并行
-    if total <= 5:
-        # 串行处理：逐只下载、写入
-        for i, (code, start) in enumerate(tasks, 1):
-            print(f"\n[{i}/{total}] {code} (从 {start} 开始)")
-            _, count = download_and_save(code, start)
-            if count >= 0:
-                print(f"  写入 {count} 条")
-                success_count += 1
-                total_rows += max(count, 0)
-            else:
-                print(f"  失败")
-                fail_list.append(code)
-    else:
-        # 并行处理：使用 ThreadPoolExecutor 实现多线程并发
-        # 由于网络IO和数据库IO是瓶颈，多线程可以显著提升效率
-        print(f"\n并行下载（{NUM_WORKERS} 线程）...")
+    # 按组处理（每组对应一个 start_date），_process_batch 内部多线程下载
+    for start_date, codes in groups.items():
+        print(f"\n批次 start={start_date}: {len(codes)} 只股票")
 
-        def _worker(args):
-            """线程工作函数，捕获异常防止单个股票失败导致整个线程崩溃"""
-            code, start = args
-            try:
-                return download_and_save(code, start)
-            except Exception:
-                return code, -1
+        s, f = _process_batch(codes, start_date, float_shares_map)
+        success_count += s
+        fail_list.extend(f)
 
-        with ThreadPoolExecutor(max_workers=NUM_WORKERS) as executor:
-            # 提交所有任务到线程池
-            futures = {executor.submit(_worker, t): t[0] for t in tasks}
-            done = 0
-            for future in as_completed(futures):
-                code, count = future.result()
-                done += 1
+        elapsed = time.time() - start_time
+        speed = success_count / elapsed if elapsed > 0 else 0
+        print(f"  完成 {success_count} 只, 耗时 {elapsed:.1f}秒, {speed:.1f} 只/秒")
 
-                if count >= 0:
-                    success_count += 1
-                    total_rows += max(count, 0)
-                else:
-                    fail_list.append(code)
-
-                # 实时进度显示，使用 \r 在同一行刷新
-                elapsed = time.time() - start_time
-                speed = done / elapsed if elapsed > 0 else 0
-                eta = (total - done) / speed if speed > 0 else 0
-                sys.stdout.write(
-                    f"\r  进度 {done}/{total} ({done*100/total:.1f}%) | "
-                    f"{speed:.1f} 只/秒 | 剩余约 {eta:.0f}秒 | "
-                    f"成功 {success_count} 失败 {len(fail_list)}    "
-                )
-                sys.stdout.flush()
-
-        print()
+    print()
 
     elapsed = time.time() - start_time
     print("\n" + "=" * 60)
     print(f"采集完成! 耗时 {elapsed:.1f} 秒")
     print(f"  成功: {success_count}/{total} 只股票")
-    print(f"  总写入: {total_rows:,} 条记录")
-
     if fail_list:
         print(f"  失败 {len(fail_list)} 只: {fail_list[:20]}{'...' if len(fail_list) > 20 else ''}")
+
+    # 清理已退市股票的数据
+    print("\n清理退市股票...")
+    _clean_delisted()
 
     _print_summary()
 
