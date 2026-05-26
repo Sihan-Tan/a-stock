@@ -265,7 +265,7 @@ def _process_batch(stock_codes, start_date, float_shares_map):
     Returns:
         (success_count, failed_codes)
     """
-    DL_CHUNK_SIZE = 50
+    DL_CHUNK_SIZE = 500
     dl_workers = NUM_WORKERS * 2
     total = len(stock_codes)
     success = 0

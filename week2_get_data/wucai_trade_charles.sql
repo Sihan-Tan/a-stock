@@ -8,6 +8,18 @@
 -- Charles 数据表 
 -- ************************************************************
 
+CREATE TABLE IF NOT EXISTS stock_list (
+    id          BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    stock_code  VARCHAR(20)  NOT NULL COMMENT '股票代码，如 600519.SH',
+    stock_name  VARCHAR(40)  NOT NULL DEFAULT '' COMMENT '股票名称',
+    exchange    CHAR(2)      NOT NULL DEFAULT '' COMMENT '交易所: SH/SZ/BJ',
+    created_at  DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '记录创建时间',
+    updated_at  DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '最后更新时间',
+
+    UNIQUE KEY uk_stock_code (stock_code)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='A股股票代码表';
+
+
 -- 日K线数据表 (核心行情数据，数据量最大)
 CREATE TABLE IF NOT EXISTS trade_stock_daily (
     id INT AUTO_INCREMENT PRIMARY KEY,

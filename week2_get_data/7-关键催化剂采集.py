@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-关键催化剂事件采集 - 使用 Qwen Max 联网搜索
+关键催化剂事件采集 - 使用 DeepSeek 联网搜索
 
 什么是"催化剂事件"？
   催化剂事件是指能够显著影响A股市场走势的宏观/政策事件。
@@ -12,7 +12,7 @@
     - 重大监管政策变化
 
 工作流程：
-  1. 调用 Qwen Max 联网搜索未来6个月的关键催化剂事件
+  1. 调用 DeepSeek 联网搜索未来6个月的关键催化剂事件
   2. 提取结构化JSON数据（日期、标题、国家、类别、重要性）
   3. 为每个事件生成AI提问prompt（用于后续深度分析）
   4. 写入 trade_calendar_event 表（importance >= 2）
@@ -31,7 +31,7 @@ from datetime import datetime, timedelta
 from openai import OpenAI
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from db_config import get_connection, DASHSCOPE_API_KEY, DASHSCOPE_BASE_URL
+from db_config import get_connection, DEEPSEEK_API_KEY, DEEPSEEK_BASE_URL, DEEPSEEK_MODEL
 
 if sys.platform == 'win32' and hasattr(sys.stdout, 'reconfigure'):
     sys.stdout.reconfigure(encoding='utf-8')
@@ -53,9 +53,9 @@ def load_prompts_config():
         return yaml.safe_load(f)
 
 
-def _call_qwen(client, prompt, enable_search=False):
+def _call_deepseek(client, prompt, enable_search=False):
     """
-    通用 Qwen Max 调用函数。
+    通用 DeepSeek 调用函数。
 
     Args:
         client: OpenAI兼容客户端实例
@@ -66,15 +66,15 @@ def _call_qwen(client, prompt, enable_search=False):
         str: 模型生成的文本响应
 
     联网搜索说明：
-      当 enable_search=True 时，Qwen Max 会联网检索最新信息，
+      当 enable_search=True 时，DeepSeek 会联网检索最新信息，
       这对于获取未来事件的准确日期至关重要（如FOMC会议日期、
       经济数据公布日等）。不启用搜索时模型只能依赖训练数据中的知识。
     """
     extra = {}
     if enable_search:
-        extra = {"enable_search": True, "search_options": {"forced_search": True}}
+        extra = {"enable_search": True}
     completion = client.chat.completions.create(
-        model="qwen-max",
+        model=DEEPSEEK_MODEL,
         messages=[{"role": "user", "content": prompt}],
         extra_body=extra,
     )
@@ -108,18 +108,17 @@ def _get_client():
     """
     创建 OpenAI 兼容客户端。
 
-    使用 DashScope(阿里云)的API，与OpenAI SDK完全兼容，
-    因此可以直接复用 openai Python 包。
+    DeepSeek API 与 OpenAI SDK 完全兼容，可直接复用 openai Python 包。
     """
     return OpenAI(
-        api_key=DASHSCOPE_API_KEY,
-        base_url=DASHSCOPE_BASE_URL,
+        api_key=DEEPSEEK_API_KEY,
+        base_url=DEEPSEEK_BASE_URL,
     )
 
 
 def search_catalysts():
     """
-    调用 Qwen Max 联网搜索关键催化剂事件。
+    调用 DeepSeek 联网搜索关键催化剂事件。
 
     搜索策略：
       1. 从 prompts.yaml 加载搜索提示词模板
@@ -127,7 +126,7 @@ def search_catalysts():
       3. 启用联网搜索获取最新、最准确的事件信息
       4. 解析返回的JSON数据
 
-    Qwen Max联网搜索的能力：
+    DeepSeek联网搜索的能力：
       - 可以获取未来已确定的事件日期（FOMC会议、经济数据公布等）
       - 可以根据新闻推断可能发生的事件（政策预期等）
       - 可以对事件的重要性进行排序和分类
@@ -144,10 +143,10 @@ def search_catalysts():
     prompt = prompt_tpl.format(start_date=start_date, end_date=end_date)
 
     print(f"搜索范围: {start_date} ~ {end_date}")
-    print("调用 Qwen Max 联网搜索...")
+    print("调用 DeepSeek 联网搜索...")
 
     client = _get_client()
-    content = _call_qwen(client, prompt, enable_search=True)
+    content = _call_deepseek(client, prompt, enable_search=True)
     print(f"  原始响应长度: {len(content)} 字符")
 
     events = _parse_json_array(content)
@@ -193,7 +192,7 @@ def generate_prompts(events):
         batch = events_brief[i:i+20]
         prompt = prompt_tpl.format(events_json=json.dumps(batch, ensure_ascii=False, indent=2))
         print(f"  生成prompt第 {i//20+1} 批 ({len(batch)} 个事件)...")
-        content = _call_qwen(client, prompt)
+        content = _call_deepseek(client, prompt)
         results = _parse_json_array(content)
         for r in results:
             title = r.get('title', '').strip()
@@ -212,7 +211,7 @@ def save_events(events, prompts_map=None):
     去重逻辑：
       因为本脚本可能多次运行，已经写入的事件不应该重复写入。
       去重基于两个条件：
-        1. source='qwen_search' 来源的事件
+        1. source='deepseek_search' 来源的事件
         2. 标题归一化后匹配 + 日期相差5天内
 
     Args:
@@ -225,10 +224,10 @@ def save_events(events, prompts_map=None):
     conn = get_connection()
     cursor = conn.cursor()
 
-    # 先拿到已有的 qwen_search 事件，用于去重
+    # 先拿到已有的 deepseek_search 事件，用于去重
     cursor.execute("""
         SELECT id, event_date, title FROM trade_calendar_event
-        WHERE source = 'qwen_search'
+        WHERE source = 'deepseek_search'
     """)
     existing = cursor.fetchall()
     # 建立归一化标题 -> 已有事件的映射
@@ -286,7 +285,7 @@ def save_events(events, prompts_map=None):
 
         cursor.execute(sql, (
             date_str, None, title, country, category,
-            importance, 'qwen_search', ai_prompt
+            importance, 'deepseek_search', ai_prompt
         ))
         count += 1
 
@@ -298,7 +297,7 @@ def save_events(events, prompts_map=None):
 
 def main():
     print("=" * 60)
-    print("关键催化剂事件采集 (Qwen Max 联网搜索)")
+    print("关键催化剂事件采集 (DeepSeek 联网搜索)")
     print("=" * 60)
 
     events = search_catalysts()
@@ -325,10 +324,10 @@ def main():
     rows = execute_query("""
         SELECT importance, COUNT(*) as cnt
         FROM trade_calendar_event
-        WHERE source = 'qwen_search'
+        WHERE source = 'deepseek_search'
         GROUP BY importance ORDER BY importance DESC
     """)
-    print("\nqwen_search 来源统计:")
+    print("\ndeepseek_search 来源统计:")
     for r in rows:
         print(f"  {r['importance']}星: {r['cnt']} 条")
 
@@ -370,7 +369,7 @@ def backfill_prompts():
     cursor = conn.cursor()
     cursor.execute("""
         SELECT id, event_date, title, country FROM trade_calendar_event
-        WHERE source = 'qwen_search' AND (ai_prompt IS NULL OR ai_prompt = '')
+        WHERE source = 'deepseek_search' AND (ai_prompt IS NULL OR ai_prompt = '')
           AND event_date >= CURDATE()
     """)
     rows = cursor.fetchall()

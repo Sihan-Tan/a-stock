@@ -2,75 +2,81 @@
 """
 新闻事件采集 - AkShare -> MySQL
 
-采集范围：全量A股（trade_stock_daily 中所有股票）
+采集范围：全量A股（仅保留沪深京A股，过滤ETF/债券/基金）
 数据源：AkShare stock_news_em() - 东方财富个股新闻
-去重方式：按标题去重（批量预加载已有标题到内存，避免逐条查库）
-跳过逻辑：当日已采集过的股票跳过
+去重方式：内存去重（近期标题） + INSERT IGNORE（唯一键兜底）
+跳过逻辑：当日已采集过的股票跳过（正确处理周末）
 
-情感分析逻辑：
-  使用关键词匹配进行简单的情感分类，分为正面(positive)、负面(negative)、中性(neutral)三类。
-  注意：这种方法较为粗糙，但处理速度快，适合大规模数据。
-  如果需要更高精度，后续可以接入NLP模型。
+优化：
+  - 批量缓冲：每50只股票的新闻汇总后 executemany 一次写入
+  - 直接列访问替代 iterrows()
+  - 仅加载近期标题去重，不限量全表加载
+  - 线程仅负责拉取，主线程统一入库，无需锁
 
 运行：python 4-新闻事件采集.py
 """
 import sys
 import os
 import time
-import pymysql
-import akshare as ak
-import threading
+from datetime import date, timedelta, datetime
 from concurrent.futures import ThreadPoolExecutor, as_completed
+
+import akshare as ak
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from db_config import get_connection, execute_query
 
 if sys.platform == 'win32' and hasattr(sys.stdout, 'reconfigure'):
-    sys.stdout.reconfigure(encoding='utf-8')
+    try:
+        sys.stdout.reconfigure(encoding='utf-8')
+    except Exception:
+        pass
 
 # ============================================================
 # 配置
 # ============================================================
-# 并行采集线程数
-NUM_WORKERS = 8
+NUM_WORKERS = 8                     # 并行采集线程数
+FLUSH_STOCKS = 50                   # 每累积多少只股票的新闻就入库一次
+NEWS_MAX_AGE = 3                    # 仅保留最近N天内发布的新闻
+DB_RETENTION_DAYS = 7               # 超过N天的新闻从DB中删除
 
-# 正面关键词：当标题中出现这些词时标记为正面新闻
+# 情感关键词
 POSITIVE_WORDS = ['涨停', '大涨', '利好', '增长', '突破', '新高', '预增', '增持',
                   '盈利', '超预期', '重大突破', '战略合作', '中标']
-
-# 负面关键词：当标题中出现这些词时标记为负面新闻
 NEGATIVE_WORDS = ['跌停', '大跌', '利空', '下降', '跌破', '新低', '预减', '减持',
                   '亏损', '违规', '处罚', '退市', '暴雷', '爆仓']
-
-# 重要事件关键词：涉及公司重大变化的新闻，需要特别关注
 IMPORTANT_WORDS = ['资产重组', '业绩预增', '业绩预减', '高送转', '股权激励',
                    '定向增发', '股东减持', '股东增持', '重大合同', '中标',
                    '收购', '并购', '停牌', '复牌', '退市', '回购']
 
-# 线程安全的打印锁，防止多线程同时输出导致内容混乱
-_print_lock = threading.Lock()
+# A股代码前缀（与行情采集脚本保持一致）
+_A_SH = set(list(range(600, 607)) + list(range(688, 691)))
+_A_SZ = set(list(range(0, 5)) + list(range(300, 303)))
+_A_BJ = set(range(800, 930))
 
 
-def safe_print(msg):
-    """线程安全的打印函数，保证多线程环境下输出不交错"""
-    with _print_lock:
-        print(msg)
+def _is_a_stock(code):
+    """判断是否为A股股票，排除ETF/债券/基金"""
+    if not code or '.' not in code:
+        return False
+    num = code.split('.')[0]
+    if len(num) != 6:
+        return False
+    try:
+        p = int(num[:3])
+    except ValueError:
+        return False
+    if code.endswith('.SH'):
+        return p in _A_SH
+    if code.endswith('.SZ'):
+        return p in _A_SZ
+    if code.endswith('.BJ'):
+        return p in _A_BJ
+    return False
 
 
 def analyze_sentiment(title):
-    """
-    基于关键词的简单情感分析。
-
-    匹配优先级：正面 > 负面 > 中性
-    注意：标题中既包含正面词又包含负面词时，正面优先。
-    这是因为负面词（如"减持"）可能出现在"股东增持"这样的正面语境中。
-
-    Args:
-        title: 新闻标题字符串
-
-    Returns:
-        str: 'positive', 'negative', 或 'neutral'
-    """
+    """关键词情感分析：正面 > 负面 > 中性"""
     for word in POSITIVE_WORDS:
         if word in title:
             return 'positive'
@@ -81,15 +87,7 @@ def analyze_sentiment(title):
 
 
 def check_important(title):
-    """
-    判断新闻是否涉及公司重大变化。
-
-    Args:
-        title: 新闻标题字符串
-
-    Returns:
-        bool: True表示该新闻是重要事件
-    """
+    """判断是否重要事件新闻"""
     for word in IMPORTANT_WORDS:
         if word in title:
             return True
@@ -97,42 +95,35 @@ def check_important(title):
 
 
 # ============================================================
-# 获取需要采集的股票列表
+# 数据库查询
 # ============================================================
 
+def _get_today_str():
+    """返回今日日期字符串（周末回退到周五），避免 CURDATE() 的周末问题"""
+    today = date.today()
+    w = today.weekday()
+    offset = w - 4 if w > 4 else 0
+    return (today - timedelta(days=offset)).strftime('%Y-%m-%d')
+
+
 def get_all_stocks():
-    """从行情数据表获取全量股票列表"""
+    """从行情表获取A股列表（已过滤ETF/债券/基金）"""
     rows = execute_query("SELECT DISTINCT stock_code FROM trade_stock_daily")
-    return [r['stock_code'] for r in rows]
+    return [r['stock_code'] for r in rows if _is_a_stock(r['stock_code'])]
 
 
 def get_today_collected():
-    """
-    获取当日已采集过新闻的股票。
-
-    目的是实现"断点续传"：如果某股票今日已经采集过新闻，
-    则跳过它，避免重复采集。这在脚本中断重跑时非常有用。
-    """
-    rows = execute_query("""
-        SELECT DISTINCT stock_code FROM trade_stock_news
-        WHERE DATE(created_at) = CURDATE()
-    """)
+    """获取今日已采集过新闻的股票（用推算的交易日，非CURDATE）"""
+    today_str = _get_today_str()
+    rows = execute_query(
+        "SELECT DISTINCT stock_code FROM trade_stock_news WHERE DATE(created_at) = %s",
+        (today_str,)
+    )
     return {r['stock_code'] for r in rows}
 
 
-def load_existing_titles():
-    """
-    一次性加载所有已有新闻标题，用于内存去重。
-
-    核心优化思路：
-      如果不做预加载，每写入一条新闻前都要查一次数据库判断是否重复，
-      这将产生O(n)次数据库查询。
-      预加载到内存集合后，去重检查变为O(1)的集合查找操作，
-      大幅减少数据库压力。
-
-    Returns:
-        set: 所有已有新闻标题的集合
-    """
+def load_all_titles():
+    """加载全部标题用于内存去重（由于仅保留近期数据，全量加载即可）"""
     rows = execute_query("SELECT title FROM trade_stock_news")
     return {r['title'] for r in rows}
 
@@ -141,132 +132,137 @@ def load_existing_titles():
 # 新闻采集
 # ============================================================
 
+INSERT_SQL = """
+    INSERT IGNORE INTO trade_stock_news
+    (stock_code, news_type, title, content, source, source_url,
+     sentiment, is_important, published_at)
+    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+"""
+
+
 def fetch_news_akshare(stock_code):
     """
-    通过 AkShare 采集个股新闻（来源：东方财富）。
-
-    Argstime:
-        stock_code: 股票代码，如 "600519.SH"
+    通过 AkShare 采集个股新闻（来源：东方财富），仅保留最近 N 天内发布的。
 
     Returns:
-        list[dict]: 新闻列表，每条包含标题、内容、链接、发布时间等
+        list[dict]: 新闻列表
     """
     code_num = stock_code.split('.')[0]
-    news_list = []
     try:
-        # stock_news_em 从东方财富获取个股新闻
         df = ak.stock_news_em(symbol=code_num)
     except Exception:
-        return news_list
+        return []
     if df is None or len(df) == 0:
-        return news_list
+        return []
 
-    for _, row in df.iterrows():
-        title = str(row.get('新闻标题', '')).strip()
+    try:
+        titles = df['新闻标题'].values
+        contents = df['新闻内容'].values
+        urls = df['新闻链接'].values
+        pub_times = df['发布时间'].values
+        sources = df['文章来源'].values
+    except Exception:
+        return []
+
+    cutoff = datetime.now() - timedelta(days=NEWS_MAX_AGE)
+
+    news_list = []
+    for i in range(len(df)):
+        title = str(titles[i]).strip()
         if not title:
             continue
-        content = str(row.get('新闻内容', '')).strip()
-        url = str(row.get('新闻链接', '')).strip()
-        pub_time = str(row.get('发布时间', '')).strip()
-        source = str(row.get('文章来源', '')).strip()
+        pub_time_str = str(pub_times[i]).strip()
+        # 过滤超过 NEWS_MAX_AGE 天的旧闻
+        if pub_time_str:
+            try:
+                pub_dt = datetime.strptime(pub_time_str[:19], '%Y-%m-%d %H:%M:%S')
+                if pub_dt < cutoff:
+                    continue
+            except ValueError:
+                pass  # 解析失败不过滤，照常入库
+
+        content = str(contents[i]).strip()[:2000]
+        url = str(urls[i]).strip()
+        source = str(sources[i]).strip() or 'eastmoney'
 
         news_list.append({
             'title': title,
-            'content': content[:2000] if content else '',  # 限制内容长度
+            'content': content,
             'link': url,
-            'published_at': pub_time if pub_time else None,
+            'published_at': pub_time_str if pub_time_str else None,
             'sentiment': analyze_sentiment(title),
             'is_important': check_important(title),
-            'source': source or 'eastmoney',
+            'source': source,
             'news_type': 'news',
         })
 
     return news_list
 
 
-# ============================================================
-# 写入数据库
-# ============================================================
+def cleanup_old_news():
+    """删除 DB_RETENTION_DAYS 天前的过期新闻"""
+    deleted = execute_query(
+        "SELECT COUNT(*) as cnt FROM trade_stock_news WHERE created_at < DATE_SUB(NOW(), INTERVAL %s DAY)",
+        (DB_RETENTION_DAYS,)
+    )
+    count = deleted[0]['cnt'] if deleted else 0
+    if count > 0:
+        conn = get_connection()
+        cursor = conn.cursor()
+        cursor.execute(
+            "DELETE FROM trade_stock_news WHERE created_at < DATE_SUB(NOW(), INTERVAL %s DAY)",
+            (DB_RETENTION_DAYS,)
+        )
+        conn.commit()
+        cursor.close()
+        conn.close()
+        print("清理过期新闻: {} 条 ({}天前)".format(count, DB_RETENTION_DAYS))
+    return count
 
-# 全局标题集合（用于内存去重）
-# Python的 GIL(全局解释器锁) 保证了 dict/set 的单个操作是线程安全的
-# 因此多个线程同时对 _existing_titles 进行 in 检查和 add 不会发生数据竞争
-_existing_titles = set()
 
-
-def save_news_to_db(stock_code, news_list):
+def _batch_save(news_list, existing_titles):
     """
-    新闻去重后写入MySQL。
-
-    去重原理：
-      1. 先在内存集合中检查标题是否存在（O(1)操作）
-      2. 对不在集合中的新闻执行INSERT
-      3. 如果INSERT遇到唯一键冲突(IntegrityError)，说明其他线程已写入
-      4. 无论成功还是冲突，都将标题加入内存集合
+    批量入库：内存去重 + executemany。
 
     Args:
-        stock_code: 股票代码
-        news_list: 新闻列表
+        news_list: [(stock_code, news_dict), ...]
+        existing_titles: 去重用标题集合（会被原地更新）
 
     Returns:
-        int: 实际新增的新闻数量
+        int: 实际新增条数
     """
-    global _existing_titles
     if not news_list:
         return 0
 
-    # 内存去重：只保留标题在集合中不存在的新闻
-    new_items = [n for n in news_list if n['title'] not in _existing_titles]
-    if not new_items:
+    rows = []
+    for stock_code, news in news_list:
+        title = news['title']
+        if title in existing_titles:
+            continue
+        existing_titles.add(title)
+        rows.append((
+            stock_code, news['news_type'], title,
+            news['content'], news['source'], news['link'],
+            news['sentiment'], 1 if news['is_important'] else 0,
+            news['published_at']
+        ))
+
+    if not rows:
         return 0
 
     conn = get_connection()
     cursor = conn.cursor()
-    saved = 0
-
-    for news in new_items:
-        try:
-            cursor.execute("""
-                INSERT INTO trade_stock_news
-                (stock_code, news_type, title, content, source, source_url,
-                 sentiment, is_important, published_at)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
-            """, (
-                stock_code, news['news_type'], news['title'],
-                news['content'], news['source'], news['link'],
-                news['sentiment'], 1 if news['is_important'] else 0,
-                news['published_at']
-            ))
-            _existing_titles.add(news['title'])
-            saved += 1
-        except pymysql.err.IntegrityError:
-            # 唯一键冲突（并发场景下其他线程已插入该新闻）
-            # 将其标题加入内存集合，避免后续重复尝试
-            _existing_titles.add(news['title'])
-
-    conn.commit()
-    cursor.close()
-    conn.close()
-    return saved
-
-
-# ============================================================
-# 单只股票处理
-# ============================================================
-
-def process_one_stock(stock_code):
-    """
-    采集单只股票新闻的完整流程。
-
-    Args:
-        stock_code: 股票代码
-
-    Returns:
-        tuple: (stock_code, 采集总数, 新增数量)
-    """
-    news = fetch_news_akshare(stock_code)
-    saved = save_news_to_db(stock_code, news)
-    return stock_code, len(news), saved
+    try:
+        cursor.executemany(INSERT_SQL, rows)
+        conn.commit()
+        return len(rows)
+    except Exception as e:
+        conn.rollback()
+        print(f"\n  批量入库失败: {e}")
+        return 0
+    finally:
+        cursor.close()
+        conn.close()
 
 
 # ============================================================
@@ -274,30 +270,27 @@ def process_one_stock(stock_code):
 # ============================================================
 
 def main():
-    global _existing_titles
-
     print("=" * 60)
     print("新闻事件采集（全量A股）")
     print("=" * 60)
 
     stock_list = get_all_stocks()
-    print("全量股票: {} 只".format(len(stock_list)))
+    print("全量A股: {} 只".format(len(stock_list)))
 
-    # 跳过当日已采集过的股票
+    # 跳过今日已采集过的股票（交易日推算，正确处理周末）
     collected = get_today_collected()
     if collected:
         stock_list = [c for c in stock_list if c not in collected]
-        print("跳过当日已采集: {} 只, 待采集: {} 只".format(len(collected), len(stock_list)))
+        print("跳过今日已采集: {} 只, 待采集: {} 只".format(len(collected), len(stock_list)))
 
     if not stock_list:
-        print("全部股票当日已采集，无需再跑")
+        print("全部股票今日已采集，无需再跑")
         return
 
-    # 预加载已有标题到内存（一次查询，后续不再逐条查库）
-    # 这是核心性能优化：将所有已有标题加载到Python的set中
+    # 加载全部标题用于去重（DB仅保留近期数据，全量加载即可）
     print("加载已有标题用于去重...")
-    _existing_titles = load_existing_titles()
-    print("  已有 {} 条标题".format(len(_existing_titles)))
+    existing_titles = load_all_titles()
+    print("  已有 {} 条标题".format(len(existing_titles)))
 
     total = len(stock_list)
     total_fetched = 0
@@ -305,42 +298,66 @@ def main():
     done = 0
     start_time = time.time()
 
-    print("\n开始采集 ({} 线程)...".format(NUM_WORKERS))
+    # 缓冲：主线程收集 worker 结果，累积到阈值后批量入库
+    buffer = []        # [(stock_code, news_dict), ...]
+    buffer_stocks = 0
 
-    # 使用线程池并行采集
+    print("\n开始采集 ({} 线程, 每{}只入库一次)...".format(NUM_WORKERS, FLUSH_STOCKS))
+
     with ThreadPoolExecutor(max_workers=NUM_WORKERS) as executor:
-        futures = {
-            executor.submit(process_one_stock, code): code
-            for code in stock_list
-        }
+        futures = {executor.submit(fetch_news_akshare, code): code for code in stock_list}
 
         for future in as_completed(futures):
             done += 1
-            code, fetched, saved = None, 0, 0
+            code = futures[future]
             try:
-                code, fetched, saved = future.result()
-                total_fetched += fetched
-                total_saved += saved
+                news = future.result()
             except Exception:
-                pass
+                news = []
 
-            # 每200只或最后一只时打印进度
-            if done % 200 == 0 or done == total:
+            total_fetched += len(news)
+            for n in news:
+                buffer.append((code, n))
+            buffer_stocks += 1
+
+            # 每 FLUSH_STOCKS 只股票入库一次
+            if buffer_stocks >= FLUSH_STOCKS:
+                saved = _batch_save(buffer, existing_titles)
+                total_saved += saved
                 elapsed = time.time() - start_time
                 speed = done / elapsed if elapsed > 0 else 0
-                eta = (total - done) / speed if speed > 0 else 0
-                sys.stdout.write(
-                    "\r  [{}/{}] {:.1f}% | {:.1f}/s | ETA {:.0f}s | "
-                    "fetched {} saved {}    ".format(
-                        done, total, done * 100 / total,
-                        speed, eta, total_fetched, total_saved
-                    )
+                print(f"\r    入库 {saved} 条 | 累计采集 {total_fetched} 新增 {total_saved} | "
+                      f"{speed:.1f}只/秒    ")
+                buffer.clear()
+                buffer_stocks = 0
+
+            # 每只股票都刷新进度
+            elapsed = time.time() - start_time
+            speed = done / elapsed if elapsed > 0 else 0
+            eta = (total - done) / speed if speed > 0 else 0
+            sys.stdout.write(
+                "\r  [{}/{}] {:.1f}% | {:.1f}只/秒 | ETA {:.0f}s | "
+                "采集 {} 新增 {}    ".format(
+                    done, total, done * 100 / total,
+                    speed, eta, total_fetched, total_saved
                 )
-                sys.stdout.flush()
+            )
+            sys.stdout.flush()
+
+    # 入库剩余
+    if buffer:
+        saved = _batch_save(buffer, existing_titles)
+        total_saved += saved
+        print(f"\n    最后入库 {saved} 条")
 
     print()
 
     elapsed = time.time() - start_time
+
+    # 清理过期新闻
+    print("\n清理过期新闻 ({}天前)...".format(DB_RETENTION_DAYS))
+    cleanup_old_news()
+
     result = execute_query("SELECT COUNT(*) as cnt FROM trade_stock_news")
     total_db = result[0]['cnt'] if result else 0
 

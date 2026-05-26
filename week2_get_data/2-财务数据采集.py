@@ -60,7 +60,7 @@ TEST_STOCK = '600519.SH'
 # 板块名称
 SECTOR = '沪深A股'
 # 每批处理的股票数量：在QMT调用次数和内存占用之间取平衡
-BATCH_SIZE = 50
+BATCH_SIZE = 500
 # 财务数据起始日期（建议至少2015年以后，太早的数据参考价值有限）
 DATA_START = '20150101'
 DATA_END = date.today().strftime('%Y%m%d')

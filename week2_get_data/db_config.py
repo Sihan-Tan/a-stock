@@ -57,6 +57,12 @@ DASHSCOPE_API_KEY = _env.get('DASHSCOPE_API_KEY', '')
 DASHSCOPE_BASE_URL = _env.get('DASHSCOPE_BASE_URL', 'https://dashscope.aliyuncs.com/compatible-mode/v1')
 QWEN_MODEL = _env.get('QWEN_MODEL', 'qwen-flash')
 
+# DeepSeek API 配置，用于关键催化剂事件采集
+# DeepSeek 兼容 OpenAI SDK 调用格式，支持联网搜索
+DEEPSEEK_API_KEY = _env.get('DEEPSEEK_API_KEY', '')
+DEEPSEEK_BASE_URL = _env.get('DEEPSEEK_BASE_URL', 'https://api.deepseek.com')
+DEEPSEEK_MODEL = _env.get('DEEPSEEK_MODEL', 'deepseek-chat')
+
 
 # ============================================================
 # 数据库工具函数
