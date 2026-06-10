@@ -10,3 +10,5 @@ OpenConfig.yaml
 gotify_push.py
 cos_config.yaml
 outputs
+chan_features_cache.csv
+chan_ml_model.pkl

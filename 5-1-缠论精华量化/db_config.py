@@ -30,7 +30,7 @@ DB_CONFIG = {
     'host': _env.get('WUCAI_SQL_HOST', 'localhost'),       # 数据库主机地址
     'user': _env.get('WUCAI_SQL_USERNAME', 'root'),        # 数据库用户名
     'password': _env.get('WUCAI_SQL_PASSWORD', ''),        # 数据库密码
-    'database': _env.get('WUCAI_SQL_DB', 'wucai_trade'),   # 数据库名
+    'database': _env.get('WUCAI_SQL_DB', 'stock'),   # 数据库名
     'port': int(_env.get('WUCAI_SQL_PORT', '3306')),       # 端口号 (注意转int)
     'charset': 'utf8mb4'  # 使用 utf8mb4 而非 utf8, 支持完整的 Unicode (如表情符号)
 }

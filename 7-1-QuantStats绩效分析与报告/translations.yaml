@@ -1,0 +1,162 @@
+# QuantStats HTML 报告 英文->中文 翻译配置
+# 修改此文件即可自定义报告中的中文翻译
+# 注意: 长字符串在前, 短字符串在后, 避免替换冲突
+# 例如 "Cumulative Return" 必须在 "Return" 之前
+
+# === 报告标题 ===
+报告标题:
+  Strategy Visualization: 策略可视化分析
+  Performance Metrics: 绩效指标
+
+# === 主要绩效指标 ===
+绩效指标:
+  Cumulative Return: 累计收益
+  "CAGR%%": "年化收益(CAGR)%%"
+  "CAGR%": "年化收益(CAGR)%"
+  Max Drawdown: 最大回撤
+  Sharpe Ratio: 夏普比率
+  Smart Sharpe: 智能夏普
+  Sortino Ratio: 索提诺比率
+  Smart Sortino: 智能索提诺
+  Calmar Ratio: 卡玛比率
+  Omega Ratio: 欧米伽比率
+  "Gain/Pain Ratio": 盈亏比率
+  "Gain/Pain (1M)": 盈亏比(近1月)
+  Information Ratio: 信息比率
+  Payoff Ratio: 赔付比率
+  Profit Factor: 利润因子
+  Profit Ratio: 利润比率
+  Common Sense Ratio: 常识比率
+  CPC Index: CPC指数
+  Tail Ratio: 尾部比率
+  Outlier Win Ratio: 异常盈利比率
+  Outlier Loss Ratio: 异常亏损比率
+  Ulcer Performance Index: 溃疡绩效指数
+  Risk-Adjusted Return: 风险调整收益
+  Risk-Return Ratio: 风险收益比
+
+# === 收益统计 ===
+收益统计:
+  MTD: 本月至今
+  QTD: 本季至今
+  YTD: 本年至今
+  3M: 近3月
+  6M: 近6月
+  1Y: 近1年
+  "3Y (ann.)": 近3年(年化)
+  "5Y (ann.)": 近5年(年化)
+  "10Y (ann.)": 近10年(年化)
+  All: 全部
+
+# === 风险指标 ===
+风险指标:
+  "Volatility (ann.)": 年化波动率
+  Volatility: 波动率
+  Skew: 偏度
+  Kurtosis: 峰度
+  "Expected Daily %%": "预期日收益%%"
+  "Expected Daily %": "预期日收益%"
+  Expected Daily: 预期日收益
+  "Expected Monthly %%": "预期月收益%%"
+  "Expected Monthly %": "预期月收益%"
+  Expected Monthly: 预期月收益
+  "Expected Yearly %%": "预期年收益%%"
+  "Expected Yearly %": "预期年收益%"
+  Expected Yearly: 预期年收益
+  Kelly Criterion: 凯利公式仓位
+  Risk of Ruin: 破产风险
+  Daily Value-at-Risk: 日VaR风险价值
+  "Expected Shortfall (cVaR)": 预期亏损(CVaR)
+
+# === 回撤相关 ===
+回撤:
+  Max Consecutive Wins: 最大连胜
+  Max Consecutive Losses: 最大连亏
+  Longest DD Days: 最长回撤天数
+  Max DD Date: 最大回撤日
+  Max DD Period Start: 最大回撤起始
+  Max DD Period End: 最大回撤结束
+  Recovery Factor: 恢复因子
+  Ulcer Index: 溃疡指数
+  Serenity Index: 宁静指数
+
+# === 交易统计 ===
+交易统计:
+  Avg. Up Month: 平均上涨月份
+  Avg. Down Month: 平均下跌月份
+  Avg. Return: 平均收益
+  Avg. Win: 平均盈利
+  Avg. Loss: 平均亏损
+  "Win/Loss Ratio": 盈亏比
+  "Win Days %%": "日胜率%%"
+  "Win Days %": "日胜率%"
+  "Win Month %%": "月胜率%%"
+  "Win Month %": "月胜率%"
+  Win Month: 月胜率
+  "Win Quarter %%": "季胜率%%"
+  "Win Quarter %": "季胜率%"
+  Win Quarter: 季胜率
+  "Win Year %%": "年胜率%%"
+  "Win Year %": "年胜率%"
+  Win Year: 年胜率
+  Best Day: 最佳单日
+  Worst Day: 最差单日
+  Best Month: 最佳月份
+  Worst Month: 最差月份
+  Best Year: 最佳年度
+  Worst Year: 最差年度
+
+# === 基准对比 ===
+基准对比:
+  "Alpha": "Alpha(超额)"
+  "Beta": "Beta(贝塔)"
+  "R^2": R平方
+  Treynor Ratio: 特雷诺比率
+
+# === 图表标题 ===
+图表标题:
+  Cumulative Returns vs Benchmark: 累计收益 vs 基准
+  Cumulative Returns: 累计收益曲线
+  EOY Returns vs Benchmark: 年度收益 vs 基准
+  EOY Returns: 年度收益
+  Returns Distribution: 收益分布
+  Monthly Returns: 月度收益热力图
+  Daily Returns: 每日收益
+  Rolling Volatility: 滚动波动率
+  Rolling Sharpe: 滚动夏普比率
+  Rolling Sortino: 滚动索提诺比率
+  Rolling Beta: 滚动贝塔
+  Underwater Plot: 水下图(回撤)
+  Drawdowns Periods: 回撤区间
+  Drawdown Periods: 回撤区间
+  Top 5 Drawdown Periods: Top 5 回撤区间
+  Worst 10 Drawdowns: 最差10次回撤
+  Worst 5 Drawdowns: 最差5次回撤
+
+# === 表头/通用标签 ===
+表头:
+  Metric: 指标
+  Strategy: 策略
+  Benchmark: 基准
+  Start Period: 开始日期
+  End Period: 结束日期
+  Risk-Free Rate: 无风险利率
+  Time in Market: 持仓时间占比
+
+# === 回撤表 ===
+回撤表:
+  Started: 开始
+  Recovered: 恢复
+  Days: 天数
+  Drawdown: 回撤
+  Valley: 谷底
+
+# === 独立指标词 (放在最后, 避免误替换) ===
+独立指标词:
+  Sharpe: 夏普
+  Sortino: 索提诺
+  Calmar: 卡玛
+  Omega: 欧米伽
+  Year: 年度
+  Cumulative: 累计
+  Return: 收益

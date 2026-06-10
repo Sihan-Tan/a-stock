@@ -59,6 +59,7 @@ from data_loader import (
     run_and_report, calc_buy_and_hold,
 )
 from chan_analyzer import ChanAnalyzer
+from db_config import execute_query
 
 # ============================================================
 # 参数配置
@@ -67,20 +68,47 @@ from chan_analyzer import ChanAnalyzer
 # 目标股票: 中芯国际 (测试集, 不参与训练)
 TARGET_STOCK = '688981.SH'
 TARGET_NAME = '中芯国际'
-START_DATE = '2022-01-01'
-END_DATE = '2025-12-31'
-SPLIT_DATE = pd.Timestamp('2025-01-01')  # 训练/测试分割点
-ML_THRESHOLD = 0.5  # 模型预测概率 >= 0.5 时才入场
+START_DATE = '2024-01-01'
+END_DATE = '2026-06-02'
+SPLIT_DATE = pd.Timestamp('2026-01-01')  # 训练/测试分割点
+ML_THRESHOLD = 0.6  # 模型预测概率 >= 0.6 时才入场
 
-# 训练股票池: 6只跨行业股票, 确保多样性
-TRAIN_STOCKS = [
-    ('600519.SH', '贵州茅台'),    # 消费龙头
-    ('300750.SZ', '宁德时代'),    # 新能源龙头
-    ('000001.SZ', '平安银行'),    # 银行股
-    ('688981.SH', '中芯国际'),    # 半导体龙头
-    ('601318.SH', '中国平安'),   # 保险龙头
-    ('159941.SZ', '纳指ETF'),    # 海外指数
-]
+# 特征缓存: 避免每次运行都重新提取缠论特征 (提取很慢)
+# 缓存文件保存在当前脚本同目录下, CSV 格式便于检查和修改
+from pathlib import Path
+_SCRIPT_DIR = Path(__file__).parent
+FEATURES_CACHE_PATH = _SCRIPT_DIR / '__cahce__/chan_features_cache.csv'
+FORCE_REFRESH = True  # True=强制重新提取特征, False=优先使用缓存
+
+# 模型持久化: 训练完成后保存模型, 下次运行可直接加载
+# 支持训练中断恢复: 如果缓存文件存在, 跳过训练直接加载
+MODEL_CACHE_PATH = _SCRIPT_DIR / '__cahce__/chan_ml_model.pkl'
+FORCE_RETRAIN = False  # True=强制重新训练, False=优先加载已保存的模型
+
+# 训练股票池: 从 stock_list 表随机采样 N 只股票
+# 设定随机种子保证每次采样结果一致, 方便复现
+import random
+TRAIN_SAMPLE_SIZE = 500
+RANDOM_SEED = 23
+
+def get_train_stocks_from_db(sample_size=TRAIN_SAMPLE_SIZE, seed=RANDOM_SEED):
+    """
+    从 stock_list 表中获取所有股票, 随机抽取 sample_size 只作为训练集,
+    返回与 TRAIN_STOCKS 相同结构的列表: [(code, name), ...]
+    """
+    rows = execute_query(
+        "SELECT stock_code, stock_name FROM stock_list ORDER BY stock_code"
+    )
+    all_stocks = [(r['stock_code'], r['stock_name']) for r in rows]
+
+    if len(all_stocks) <= sample_size:
+        return all_stocks
+
+    rng = random.Random(seed)
+    return rng.sample(all_stocks, sample_size)
+
+
+TRAIN_STOCKS = get_train_stocks_from_db()
 
 
 # ============================================================
@@ -212,6 +240,9 @@ def extract_chan_features(stock_code, start_date, end_date):
     features_df = features_df[valid]
     labels = labels[valid].astype(int)
 
+    # 记录股票代码, 方便缓存时区分来源
+    features_df['stock_code'] = stock_code
+
     return features_df, labels, signal_df
 
 
@@ -254,69 +285,170 @@ def collect_multi_stock_features(stocks, start_date, end_date):
 
 
 # ============================================================
-# Step 2: 模型训练
+# Step 1.5: 特征持久化 - 保存/加载/缓存
 # ============================================================
 
-def train_model(features_df, labels, split_date):
+def save_features_to_csv(features_df, labels, filepath):
     """
-    训练三买成功预测模型
+    将特征和标签保存为 CSV 文件
 
-    模型选择优先级: LightGBM > XGBoost > GradientBoosting (降级)
-    目标是可解释性强的浅树模型, 不追求复杂的深度学习。
+    保存格式:
+      - stock_code: 股票代码
+      - signal_date: 三买信号日期 (从 features_df 的 index 取出)
+      - 10 个特征列 (zs_height_ratio ... momentum_10d)
+      - label: 标签 (1=成功, 0=失败)
+
+    参数:
+        features_df: 特征 DataFrame (index=信号日期, 包含 stock_code 列)
+        labels: numpy 数组
+        filepath: 保存路径 (str 或 Path)
+    """
+    df = features_df.copy()
+    df['signal_date'] = df.index  # 把日期 index 存为一列
+    df['label'] = labels
+    df.to_csv(filepath, index=False, encoding='utf-8-sig')
+    print(f"  特征已保存: {filepath} ({len(df)} 条样本)")
+
+
+def load_features_from_csv(filepath):
+    """
+    从 CSV 文件加载特征和标签
+
+    返回:
+        features_df: 特征 DataFrame (index=signal_date, 不含 stock_code/label)
+        labels: numpy 数组
+        all_stock_codes: list[str] (样本对应的股票代码, 与 features_df 同序)
+
+    如果文件不存在, 返回 (None, None, None)
+    """
+    if not Path(filepath).exists():
+        return None, None, None
+
+    df = pd.read_csv(filepath, encoding='utf-8-sig')
+    labels = df['label'].values.astype(int)
+    stock_codes = df['stock_code'].tolist()
+
+    # 恢复 index 为 signal_date, 去掉辅助列
+    feature_cols = [c for c in df.columns if c not in ('stock_code', 'signal_date', 'label')]
+    features_df = df.set_index('signal_date')[feature_cols]
+    features_df.index = pd.to_datetime(features_df.index)
+
+    return features_df, labels, stock_codes
+
+
+def get_or_collect_features(stocks, start_date, end_date,
+                            cache_path=FEATURES_CACHE_PATH,
+                            force_refresh=FORCE_REFRESH):
+    """
+    获取训练特征 (优先读缓存, 缓存不存在时提取并保存)
+
+    使用逻辑:
+      1. 如果缓存文件存在 且 force_refresh=False → 从 CSV 加载
+      2. 否则 → 从数据库/行情提取特征, 保存到 CSV
+
+    参数:
+        stocks: [(code, name), ...] 训练股票列表
+        start_date, end_date: 数据区间
+        cache_path: 缓存文件路径
+        force_refresh: True=强制重新提取
+
+    返回:
+        features_df, labels (与 collect_multi_stock_features 返回值一致)
+    """
+    cache_path = Path(cache_path)
+
+    # --- 尝试从缓存加载 ---
+    if cache_path.exists() and not force_refresh:
+        print(f"  从缓存加载特征: {cache_path}")
+        print(f"  文件大小: {cache_path.stat().st_size / 1024:.1f} KB")
+        features_df, labels, stock_codes = load_features_from_csv(cache_path)
+        if features_df is not None and len(features_df) > 0:
+            # 打印缓存中的股票覆盖情况
+            cached_codes = set(stock_codes)
+            requested_codes = {code for code, _ in stocks}
+            missing = requested_codes - cached_codes
+            print(f"  缓存覆盖: {len(cached_codes)} 只股票, {len(features_df)} 条样本")
+            if missing:
+                print(f"  ⚠ 缓存中缺少 {len(missing)} 只股票: {missing}")
+                print(f"    如需包含这些股票, 设置 FORCE_REFRESH=True 重新提取")
+            return features_df, labels
+        else:
+            print(f"  缓存文件为空, 将重新提取")
+
+    # --- 重新提取特征 ---
+    print(f"  提取特征 (共 {len(stocks)} 只股票)...")
+    features_df, labels = collect_multi_stock_features(stocks, start_date, end_date)
+
+    if len(features_df) > 0:
+        save_features_to_csv(features_df, labels, cache_path)
+
+    return features_df, labels
+
+def prepare_train_data(features_df, labels, split_date):
+    """
+    将特征按时间分割为训练集和验证集
+
+    Walk-Forward 分割:
+      训练集: 信号日期 < split_date  (历史数据)
+      验证集: 信号日期 >= split_date (未来数据)
+
+    返回:
+        X_train, y_train: 训练特征和标签
+        X_test, y_test:   验证特征和标签
+        feature_cols:     参与训练的特征列名 (已排除 stock_code)
+    """
+    train_mask = features_df.index < split_date
+    test_mask = features_df.index >= split_date
+
+    # 去掉非特征列 (stock_code 仅用于缓存标识, 不参与训练)
+    feature_cols = [c for c in features_df.columns if c != 'stock_code']
+    X_train = features_df.loc[train_mask, feature_cols]
+    y_train = labels[np.where(train_mask)[0]]
+    X_test = features_df.loc[test_mask, feature_cols]
+    y_test = labels[np.where(test_mask)[0]]
+
+    if len(X_train) < 3 or len(X_test) < 2:
+        print(f"  样本不足: 训练{len(X_train)}, 验证{len(X_test)}")
+        return None, None, None, None, feature_cols
+
+    print(f"\n  训练集: {len(X_train)}个三买 | 成功率: {y_train.mean()*100:.0f}%")
+    print(f"  验证集: {len(X_test)}个三买 | 成功率: {y_test.mean()*100:.0f}%")
+
+    return X_train, y_train, X_test, y_test, feature_cols
+
+
+def _detect_ml_engine():
+    """检测可用的ML引擎: LightGBM > XGBoost > sklearn"""
+    from importlib.util import find_spec
+    if find_spec('lightgbm'):
+        return 'lightgbm'
+    if find_spec('xgboost'):
+        return 'xgboost'
+    return 'sklearn'
+
+
+def _create_model(ml_engine, y_train):
+    """
+    创建模型实例 (不训练)
 
     防过拟合设计:
       - max_depth=3: 每棵树深度有限
       - reg_alpha/reg_lambda: L1/L2正则化
-      - min_child_samples=2: 叶子节点最少样本数
+      - min_child_samples=2 / min_samples_leaf=2: 叶子最少样本数
       - n_estimators=60: 有限棵数
-
-    评估指标:
-      - accuracy: 总体准确率
-      - precision: 预测"成功"的准确率 (避免假信号)
-      - recall: 找出了多少"真成功" (避免漏掉好信号)
-      - F1: 综合指标
     """
-    ml_engine = 'sklearn'
-    try:
-        import lightgbm as lgb
-        ml_engine = 'lightgbm'
-    except ImportError:
-        try:
-            import xgboost as xgb
-            ml_engine = 'xgboost'
-        except ImportError:
-            pass
-
-    from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score
-
-    # 按时间分割: 训练集 < split_date <= 测试集
-    train_mask = features_df.index < split_date
-    test_mask = features_df.index >= split_date
-
-    X_train = features_df[train_mask]
-    y_train = labels[np.where(train_mask)[0]]
-    X_test = features_df[test_mask]
-    y_test = labels[np.where(test_mask)[0]]
-
-    if len(X_train) < 3 or len(X_test) < 2:
-        print(f"  样本不足: 训练{len(X_train)}, 测试{len(X_test)}")
-        return None, {}, ml_engine
-
-    print(f"\n  引擎: {ml_engine}")
-    print(f"  训练集: {len(X_train)}个三买 | 成功率: {y_train.mean()*100:.0f}%")
-    print(f"  测试集: {len(X_test)}个三买 | 成功率: {y_test.mean()*100:.0f}%")
-
     if ml_engine == 'lightgbm':
         import lightgbm as lgb
-        model = lgb.LGBMClassifier(
+        return lgb.LGBMClassifier(
             n_estimators=60, max_depth=3, learning_rate=0.1,
             min_child_samples=2, reg_alpha=0.1, reg_lambda=1.0,
             is_unbalance=True, verbose=-1, random_state=42,
+            device='gpu', gpu_platform_id=0, gpu_device_id=0,
         )
     elif ml_engine == 'xgboost':
         import xgboost as xgb
         pos_w = max((y_train == 0).sum() / max((y_train == 1).sum(), 1), 1)
-        model = xgb.XGBClassifier(
+        return xgb.XGBClassifier(
             n_estimators=60, max_depth=3, learning_rate=0.1,
             min_child_weight=2, reg_alpha=0.1, reg_lambda=1.0,
             scale_pos_weight=pos_w, eval_metric='logloss',
@@ -324,12 +456,88 @@ def train_model(features_df, labels, split_date):
         )
     else:
         from sklearn.ensemble import GradientBoostingClassifier
-        model = GradientBoostingClassifier(
+        return GradientBoostingClassifier(
             n_estimators=60, max_depth=3, learning_rate=0.1,
             min_samples_leaf=2, random_state=42,
         )
 
+
+def save_model(model, filepath):
+    """
+    保存模型到磁盘 (joblib 格式)
+
+    joblib 专门优化了 numpy 数组和 scikit-learn 模型的序列化,
+    比 pickle 更快、文件更小。
+    """
+    import joblib
+    filepath = Path(filepath)
+    joblib.dump(model, filepath)
+    size_kb = filepath.stat().st_size / 1024
+    print(f"  模型已保存: {filepath} ({size_kb:.1f} KB)")
+
+
+def load_model(filepath):
+    """
+    从磁盘加载模型
+
+    返回:
+        model 对象, 文件不存在时返回 None
+    """
+    import joblib
+    filepath = Path(filepath)
+    if not filepath.exists():
+        return None
+    print(f"  模型已加载: {filepath} ({filepath.stat().st_size / 1024:.1f} KB)")
+    return joblib.load(filepath)
+
+
+def fit_model(X_train, y_train, ml_engine=None):
+    """
+    训练模型 (纯训练, 不做评估)
+
+    参数:
+        X_train, y_train: 训练数据
+        ml_engine: 指定引擎, None时自动检测
+
+    返回:
+        model: 训练好的模型
+        ml_engine: 实际使用的引擎名称
+    """
+    if ml_engine is None:
+        ml_engine = _detect_ml_engine()
+
+    print(f"  引擎: {ml_engine}")
+    model = _create_model(ml_engine, y_train)
+
+    # 检测 GPU 是否实际启用 (LightGBM GPU 不可用时静默回退 CPU)
+    if ml_engine == 'lightgbm':
+        params = model.get_params()
+        gpu_enabled = params.get('device') in ('gpu', 'cuda')
+        print(f"  GPU加速: {'✓ 已启用' if gpu_enabled else '✗ 未启用 (检查: pip install lightgbm GPU版)'}"
+              f" (device={params.get('device', '未设置')})")
+
     model.fit(X_train, y_train)
+    print(f"  训练完成")
+
+    return model, ml_engine
+
+
+def evaluate_model(model, X_test, y_test, feature_cols):
+    """
+    在验证集上评估模型
+
+    与训练完全分离: 只做预测和指标计算, 不修改模型。
+
+    评估指标:
+      - accuracy: 总体准确率
+      - precision: 预测"成功"的准确率
+      - recall: 找出了多少"真成功"
+      - F1: 综合指标
+
+    返回:
+        metrics: dict
+    """
+    from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score
 
     y_pred = model.predict(X_test)
     y_proba = model.predict_proba(X_test)[:, 1]
@@ -341,7 +549,7 @@ def train_model(features_df, labels, split_date):
         'f1': f1_score(y_test, y_pred, zero_division=0),
     }
 
-    print(f"\n  测试集评估:")
+    print(f"\n  验证集评估:")
     print(f"    准确率:  {metrics['accuracy']*100:.1f}%")
     print(f"    精确率:  {metrics['precision']*100:.1f}%")
     print(f"    召回率:  {metrics['recall']*100:.1f}%")
@@ -349,7 +557,7 @@ def train_model(features_df, labels, split_date):
 
     # 打印特征重要性 (帮助理解模型学到了什么)
     if hasattr(model, 'feature_importances_'):
-        importances = pd.Series(model.feature_importances_, index=features_df.columns)
+        importances = pd.Series(model.feature_importances_, index=feature_cols)
         importances = importances.sort_values(ascending=False)
         imp_max = importances.max()
         imp_norm = importances / imp_max if imp_max > 0 else importances
@@ -358,7 +566,44 @@ def train_model(features_df, labels, split_date):
             bar = '#' * int(imp_n * 25)
             print(f"    {feat:<22} {imp_n:.2f} {bar}")
 
-    return model, metrics, ml_engine
+    return metrics
+
+
+def get_or_train_model(X_train, y_train,
+                       cache_path=MODEL_CACHE_PATH,
+                       force_retrain=FORCE_RETRAIN):
+    """
+    获取模型 (优先从缓存加载, 支持训练中断恢复)
+
+    使用逻辑:
+      1. 如果缓存文件存在 且 force_retrain=False → 加载已有模型
+         (训练中断后重启, 直接从这里恢复)
+      2. 否则 → 训练新模型并保存到磁盘
+
+    参数:
+        X_train, y_train: 训练数据
+        cache_path: 模型缓存路径
+        force_retrain: True=强制重新训练
+
+    返回:
+        model, ml_engine
+    """
+    cache_path = Path(cache_path)
+
+    # --- 尝试从缓存加载 (中断恢复入口) ---
+    if cache_path.exists() and not force_retrain:
+        model = load_model(cache_path)
+        if model is not None:
+            ml_engine = _detect_ml_engine()
+            return model, ml_engine
+
+    # --- 训练新模型 ---
+    model, ml_engine = fit_model(X_train, y_train)
+
+    # --- 保存到缓存 (下次运行 / 中断恢复) ---
+    save_model(model, cache_path)
+
+    return model, ml_engine
 
 
 # ============================================================
@@ -483,16 +728,22 @@ def main():
     print("=" * 70)
     print("\n设计思路:")
     print("  1. 提取每个三买信号点的缠论结构特征 + 技术指标特征")
-    print("  2. 多股票训练LightGBM模型, 预测三买成功率")
-    print("  3. 只在模型预测成功率 >= 50% 时入场")
-    print("  4. 对比: 基础三买策略 vs ML增强三买策略")
+    print("  2. 时间分割: 历史数据训练, 未来数据验证")
+    print("  3. 训练LightGBM模型 (可中断恢复, 模型持久化)")
+    print("  4. 验证集评估模型预测能力")
+    print("  5. 只在模型预测成功率 >= 50% 时入场")
+    print("  6. 对比: 基础三买策略 vs ML增强三买策略")
 
-    # ---- Step 1: 多股票特征收集 ----
+    # ---- Step 1: 多股票特征收集 (优先读缓存) ----
     print(f"\n{'=' * 70}")
     print("Step 1: 多股票三买特征收集")
     print(f"{'=' * 70}")
 
-    features_df, labels = collect_multi_stock_features(TRAIN_STOCKS, START_DATE, END_DATE)
+    features_df, labels = get_or_collect_features(
+        TRAIN_STOCKS, START_DATE, END_DATE,
+        cache_path=FEATURES_CACHE_PATH,
+        force_refresh=FORCE_REFRESH,
+    )
 
     if len(features_df) < 5:
         print(f"\n三买样本不足({len(features_df)}个), 无法训练")
@@ -502,26 +753,46 @@ def main():
     print(f"  成功(20日涨>5%): {labels.sum()} ({labels.mean()*100:.0f}%)")
     print(f"  失败: {len(labels)-labels.sum()} ({(1-labels.mean())*100:.0f}%)")
 
-    # ---- Step 2: 模型训练 ----
+    # ---- Step 2: 准备训练/验证数据 (时间分割) ----
     print(f"\n{'=' * 70}")
-    print(f"Step 2: 模型训练 (分割: {SPLIT_DATE.strftime('%Y-%m-%d')})")
+    print(f"Step 2: 准备训练/验证数据 (分割: {SPLIT_DATE.strftime('%Y-%m-%d')})")
     print(f"{'=' * 70}")
 
-    model, model_metrics, ml_engine = train_model(features_df, labels, SPLIT_DATE)
-    if model is None:
-        print("模型训练失败")
+    X_train, y_train, X_test, y_test, feature_cols = prepare_train_data(
+        features_df, labels, SPLIT_DATE
+    )
+    if X_train is None:
+        print("数据准备失败")
         return
 
-    # ---- Step 3: 为目标股票生成预测 ----
+    # ---- Step 3: 训练模型 (可中断恢复) ----
     print(f"\n{'=' * 70}")
-    print(f"Step 3: 为 {TARGET_NAME}({TARGET_STOCK}) 生成预测")
+    print(f"Step 3: 训练模型")
+    print(f"{'=' * 70}")
+
+    model, ml_engine = get_or_train_model(
+        X_train, y_train,
+        cache_path=MODEL_CACHE_PATH,
+        force_retrain=FORCE_RETRAIN,
+    )
+
+    # ---- Step 4: 验证模型 ----
+    print(f"\n{'=' * 70}")
+    print(f"Step 4: 验证模型 (测试集)")
+    print(f"{'=' * 70}")
+
+    model_metrics = evaluate_model(model, X_test, y_test, feature_cols)
+
+    # ---- Step 5: 为目标股票生成预测 ----
+    print(f"\n{'=' * 70}")
+    print(f"Step 5: 为 {TARGET_NAME}({TARGET_STOCK}) 生成预测")
     print(f"{'=' * 70}")
 
     target_feat, _, target_signal_df = extract_chan_features(TARGET_STOCK, START_DATE, END_DATE)
 
     predictions = {}
     if len(target_feat) > 0:
-        probas = model.predict_proba(target_feat)[:, 1]
+        probas = model.predict_proba(target_feat[feature_cols])[:, 1]
         for date, prob in zip(target_feat.index, probas):
             d = date.date() if hasattr(date, 'date') else date
             predictions[d] = float(prob)
@@ -533,7 +804,7 @@ def main():
     else:
         print("  无三买信号")
 
-    # ---- Step 4: 回测对比 ----
+    # ---- Step 6: 回测对比 ----
     print(f"\n{'=' * 70}")
     print(f"Step 4: 回测对比 ({TARGET_NAME})")
     print(f"{'=' * 70}")

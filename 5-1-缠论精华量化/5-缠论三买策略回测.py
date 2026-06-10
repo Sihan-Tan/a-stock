@@ -172,7 +172,7 @@ def main():
     result = run_and_report(
         ChanThirdBuyStrategy,
         stock_code=STOCK_CODE,
-        label='缠论三买策略',
+        label='5-缠论三买策略',
         plot=True,
         df=signal_df,
         data_class=ChanPandasData,

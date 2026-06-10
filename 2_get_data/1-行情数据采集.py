@@ -439,6 +439,8 @@ def main():
     # 按组处理（每组对应一个 start_date），_process_batch 内部多线程下载
     for start_date, codes in groups.items():
         print(f"\n批次 start={start_date}: {len(codes)} 只股票")
+        if len(codes) < 10:
+            print(f"  {codes[:10]}")
 
         s, f = _process_batch(codes, start_date, float_shares_map)
         success_count += s

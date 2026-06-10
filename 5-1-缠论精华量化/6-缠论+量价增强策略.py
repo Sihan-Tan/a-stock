@@ -55,9 +55,9 @@ from chan_analyzer import ChanAnalyzer
 # 参数配置
 # ============================================================
 
-STOCK_CODE = '600519.SH'
-START_DATE = '2023-01-01'
-END_DATE = '2025-12-31'
+STOCK_CODE = '300782.SZ'
+START_DATE = '2024-01-01'
+END_DATE = '2025-06-01'
 
 
 # ============================================================
@@ -270,7 +270,7 @@ def main():
     result_enhanced = run_and_report(
         ChanTrailingStopStrategy,
         stock_code=STOCK_CODE,
-        label='增强-跟踪止损',
+        label='缠论+量价增强-跟踪止损',
         plot=True,
         df=signal_df,
         data_class=ChanPandasData,
