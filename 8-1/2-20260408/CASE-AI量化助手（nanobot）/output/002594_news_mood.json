@@ -1,0 +1,21 @@
+{
+  "overall_sentiment": "乐观",
+  "fear_greed_index": 75,
+  "positive_count": 5,
+  "negative_count": 2,
+  "neutral_count": 1,
+  "top_themes": [
+    "比亚迪相关",
+    "汽车行业动态",
+    "企业合作与业绩"
+  ],
+  "risk_alerts": [
+    "江淮汽车销量低迷，产能闲置问题需关注",
+    "汽车行业资金流出可能影响整体情绪"
+  ],
+  "opportunity_hints": [
+    "林泰新材与比亚迪的合作可能带来投资机会",
+    "比亚迪业绩强劲或推动股价上涨"
+  ],
+  "summary": "市场情绪总体偏乐观，比亚迪相关消息积极，但需关注江淮汽车的负面信息。"
+}

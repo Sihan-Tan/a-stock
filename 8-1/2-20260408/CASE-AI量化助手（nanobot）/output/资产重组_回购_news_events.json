@@ -1,0 +1,116 @@
+{
+  "summary": {
+    "total_news": 8,
+    "events_detected": 8,
+    "bullish_events": 8,
+    "bearish_events": 0,
+    "policy_events": 0
+  },
+  "events": [
+    {
+      "news_index": 0,
+      "news_preview": "预计本次交易可能构成重大资产重组。 亿纬锂能（300014）：公司拟与启东市人民政府就公司在启东经济开发区投资建设50GWh储能（动力）电池生产基地相关事宜签订《投资合作协议书》，项目投资总额约50亿元。 300067，拟重大资产重组！",
+      "detection_method": "keyword",
+      "event_type": "利好",
+      "event_category": "资产重组",
+      "matched_keywords": [
+        "资产重组",
+        "重大资产"
+      ],
+      "signal": "强烈关注",
+      "signal_reason": "资产重组可能带来基本面质变"
+    },
+    {
+      "news_index": 1,
+      "news_preview": "长源东谷表示，本次交易构成关联交易，预计构成重大资产重组，但不构成重组上市，不会导致公司控股股东及实控人变更。 公告显示，康豪机电专注于热交换系统、柴油动力单元集成的研发、生产及销售。 603950，宣布重大资产重组！明天复牌！",
+      "detection_method": "keyword",
+      "event_type": "利好",
+      "event_category": "资产重组",
+      "matched_keywords": [
+        "资产重组",
+        "重大资产"
+      ],
+      "signal": "强烈关注",
+      "signal_reason": "资产重组可能带来基本面质变"
+    },
+    {
+      "news_index": 2,
+      "news_preview": "本次交易不会导致公司实际控制人变更，预计构成重大资产重组但不构成重组上市、预计不构成关联交易。公司已与本次交易的主要交易对方签署了《交易意向协议》，本次交易的具体交易方式、交易方案、发股价格、交易作价等安排由交易各方后续协商确定。公司股票自2026年4月8日开市起停牌。 安诺其：筹划重大资产重组事项",
+      "detection_method": "keyword",
+      "event_type": "利好",
+      "event_category": "资产重组",
+      "matched_keywords": [
+        "资产重组",
+        "重大资产"
+      ],
+      "signal": "强烈关注",
+      "signal_reason": "资产重组可能带来基本面质变"
+    },
+    {
+      "news_index": 3,
+      "news_preview": "南财智讯4月7日电，安诺其公告，公司股票自2026年4月8日起停牌；停牌原因为筹划发行股份及支付现金购买资产并募集配套资金事项，预计构成重大资产重组；公司预计在不超过10个交易日的时间内披露本次交易方案，即于2026年4月22日开市前申请复牌；若未能按期披露，公司证券最晚将于2026 安诺其：筹划重",
+      "detection_method": "keyword",
+      "event_type": "利好",
+      "event_category": "资产重组",
+      "matched_keywords": [
+        "资产重组",
+        "重大资产"
+      ],
+      "signal": "强烈关注",
+      "signal_reason": "资产重组可能带来基本面质变"
+    },
+    {
+      "news_index": 4,
+      "news_preview": "证券日报网讯 4月7日，苏豪时尚发布公告称，公司目前正在组织有关各方对标的资产进行梳理，截至本公告披露之日，本次交易所涉及的尽职调查、财务审计、资产评估等工作正在持续推进中。本次交易尚处于筹划阶段，交易双方尚未签署任何协议，交易方案仍需进一步论证和沟通协商，并需履行必要的决策和审批程序 苏豪时尚：关",
+      "detection_method": "keyword",
+      "event_type": "利好",
+      "event_category": "资产重组",
+      "matched_keywords": [
+        "资产重组",
+        "重大资产",
+        "资产置换"
+      ],
+      "signal": "强烈关注",
+      "signal_reason": "资产重组可能带来基本面质变"
+    },
+    {
+      "news_index": 5,
+      "news_preview": "证券日报网讯 4月6日，中南文化在互动平台回答投资者提问时表示，公司本次重大资产重组相关工作正在按计划稳步推进中。公司将严格按照证券法律法规相关规定，及时履行信息披露义务，后续进展请以公司在指定信息披露媒体发布的公告为准。 中南文化：公司重大资产重组相关工作正在按计划稳步推进中",
+      "detection_method": "keyword",
+      "event_type": "利好",
+      "event_category": "资产重组",
+      "matched_keywords": [
+        "资产重组",
+        "重大资产"
+      ],
+      "signal": "强烈关注",
+      "signal_reason": "资产重组可能带来基本面质变"
+    },
+    {
+      "news_index": 6,
+      "news_preview": "预计本次交易可能构成重大资产重组。 安诺其：筹划购买广州烽云信息科技有限公司控制权 预计构成重大资产重组",
+      "detection_method": "keyword",
+      "event_type": "利好",
+      "event_category": "资产重组",
+      "matched_keywords": [
+        "资产重组",
+        "重大资产"
+      ],
+      "signal": "强烈关注",
+      "signal_reason": "资产重组可能带来基本面质变"
+    },
+    {
+      "news_index": 7,
+      "news_preview": "证券日报网讯 4月6日，中南文化在互动平台回答投资者提问时表示，公司的发行定价符合《上市公司重大资产重组管理办法》的要求。 中南文化：公司的发行定价符合《上市公司重大资产重组管理办法》的要求",
+      "detection_method": "keyword",
+      "event_type": "利好",
+      "event_category": "资产重组",
+      "matched_keywords": [
+        "资产重组",
+        "重大资产"
+      ],
+      "signal": "强烈关注",
+      "signal_reason": "资产重组可能带来基本面质变"
+    }
+  ]
+}

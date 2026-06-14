@@ -1,0 +1,76 @@
+{
+  "indicators": [
+    {
+      "indicator": "VIX",
+      "name": "标普500波动率指数",
+      "value": 25.63,
+      "date": "2026-04-07",
+      "risk_level": "恐慌",
+      "description": "衡量美股市场的恐慌程度",
+      "source": "Yahoo Finance"
+    },
+    {
+      "indicator": "US10Y",
+      "name": "美国10年期国债收益率",
+      "value": 4.337,
+      "unit": "%",
+      "date": "2026-04-07",
+      "risk_level": "中性",
+      "strategy_hint": "利率处于分水岭附近，密切关注方向选择",
+      "thresholds": {
+        ">4.4%": "偏紧，看好价值股",
+        "<4.3%": "宽松预期，看好成长股"
+      },
+      "description": "全球资产定价之锚",
+      "source": "Yahoo Finance"
+    },
+    {
+      "indicator": "OVX",
+      "name": "原油ETF波动率指数",
+      "value": 96.14,
+      "date": "2026-04-06",
+      "description": "衡量能源供应风险和地缘政治风险传导",
+      "source": "Yahoo Finance"
+    },
+    {
+      "indicator": "GVZ",
+      "name": "黄金ETF波动率指数",
+      "value": 37.04,
+      "date": "2026-04-06",
+      "description": "衡量避险情绪强度",
+      "source": "Yahoo Finance"
+    }
+  ],
+  "ashare_sentiment": null,
+  "composite": {
+    "composite_fear_greed_index": 25,
+    "overall_sentiment": "极度恐慌",
+    "action_suggestion": "市场极度恐慌，历史上往往是中长期买入良机",
+    "score_details": [
+      {
+        "indicator": "VIX",
+        "value": 25.63,
+        "score_delta": -15,
+        "note": "VIX偏高，市场存在恐慌情绪"
+      },
+      {
+        "indicator": "US10Y",
+        "value": 4.337,
+        "score_delta": 0,
+        "note": "利率处于分水岭，密切关注"
+      },
+      {
+        "indicator": "OVX",
+        "value": 96.14,
+        "score_delta": -10,
+        "note": "原油波动率高，地缘政治风险可能升级"
+      }
+    ],
+    "contagion_analysis": {
+      "pattern": "OVX与VIX同步共振向上",
+      "interpretation": "地缘风险已触发流动性危机或全球经济衰退预期",
+      "action": "需立即风控，增配黄金和现金类资产"
+    },
+    "timestamp": "2026-04-07 21:34:31"
+  }
+}

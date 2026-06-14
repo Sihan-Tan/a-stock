@@ -1,0 +1,496 @@
+{
+  "search_keywords": [
+    "China",
+    "Iran",
+    "recession"
+  ],
+  "timestamp": "2026-04-07 21:35:45",
+  "total_markets": 13,
+  "markets": [
+    {
+      "event_id": "16167",
+      "event_title": "MicroStrategy sells any Bitcoin by ___ ?",
+      "market_id": "516926",
+      "question": "MicroStrategy sells any Bitcoin in 2025?",
+      "yes_probability": 0.0,
+      "no_probability": 100.0,
+      "volume_usd": 17976157.53,
+      "volume_display": "$18.0M",
+      "liquidity_usd": 0.0,
+      "signal_strength": "极强否定",
+      "end_date": "2025-12-31T12:00:00Z",
+      "description": "This market will resolve to \"Yes\" if MicroStrategy sells any of its Bitcoin by December 31, 2025, 11:59 PM ET. Otherwise, this market will resolve to \"No\".\n\nThe primary resolution source for this mark"
+    },
+    {
+      "event_id": "17725",
+      "event_title": "Starmer out by...?",
+      "market_id": "1336699",
+      "question": "Starmer out by February 28, 2026?",
+      "yes_probability": 0.0,
+      "no_probability": 100.0,
+      "volume_usd": 5862235.98,
+      "volume_display": "$5.9M",
+      "liquidity_usd": 0.0,
+      "signal_strength": "极强否定",
+      "end_date": "2026-06-30T12:00:00Z",
+      "description": "This market will resolve to “Yes” if Keir Starmer ceases to be the Prime Minister of the United Kingdom for any period of time between September 14, 2025, and February 28, 2026, 11:59 PM ET. Otherwise"
+    },
+    {
+      "event_id": "16167",
+      "event_title": "MicroStrategy sells any Bitcoin by ___ ?",
+      "market_id": "692250",
+      "question": "MicroStrategy sells any Bitcoin by March 31, 2026?",
+      "yes_probability": 0.0,
+      "no_probability": 100.0,
+      "volume_usd": 2710379.63,
+      "volume_display": "$2.7M",
+      "liquidity_usd": 0.0,
+      "signal_strength": "极强否定",
+      "end_date": "",
+      "description": "This market will resolve to \"Yes\" if MicroStrategy sells any of its Bitcoin by 11:59 PM ET on the date specified in the title. Otherwise, this market will resolve to \"No\".\n\nThe primary resolution sour"
+    },
+    {
+      "event_id": "17858",
+      "event_title": "Ukraine recognizes Russian sovereignty over its territory by...?",
+      "market_id": "522057",
+      "question": "Ukraine recognizes Russian sovereignty over its territory by December 31, 2025?",
+      "yes_probability": 0.0,
+      "no_probability": 100.0,
+      "volume_usd": 2130098.43,
+      "volume_display": "$2.1M",
+      "liquidity_usd": 0.0,
+      "signal_strength": "极强否定",
+      "end_date": "2025-12-31T12:00:00Z",
+      "description": "This market will resolve to \"Yes\" if a deal in which Ukraine agrees to formally recognize Russian sovereignty over any UN-recognized Ukrainian territory is reached between the Russian Federation and U"
+    },
+    {
+      "event_id": "17725",
+      "event_title": "Starmer out by...?",
+      "market_id": "597967",
+      "question": "Starmer out by June 30, 2026?",
+      "yes_probability": 26.5,
+      "no_probability": 73.5,
+      "volume_usd": 1425913.06,
+      "volume_display": "$1.4M",
+      "liquidity_usd": 64382.26,
+      "signal_strength": "较强否定",
+      "end_date": "2026-06-30T12:00:00Z",
+      "description": "This market will resolve to “Yes” if Keir Starmer ceases to be the Prime Minister of the United Kingdom for any period of time between September 14, 2025, and June 30, 2026, 11:59 PM ET. Otherwise, th"
+    },
+    {
+      "event_id": "16263",
+      "event_title": "Macron out by...?",
+      "market_id": "517231",
+      "question": "Macron out in 2025?",
+      "yes_probability": 0.0,
+      "no_probability": 100.0,
+      "volume_usd": 1386219.77,
+      "volume_display": "$1.4M",
+      "liquidity_usd": 0.0,
+      "signal_strength": "极强否定",
+      "end_date": "2025-12-31T12:00:00Z",
+      "description": "This market will resolve to \"Yes\" if Emmanuel Macron ceases to be President of France for any length of time between January 2 and December 31, 2025, 11:59 PM ET (inclusive). Otherwise, this market wi"
+    },
+    {
+      "event_id": "17725",
+      "event_title": "Starmer out by...?",
+      "market_id": "521532",
+      "question": "Starmer out in 2025?",
+      "yes_probability": 0.0,
+      "no_probability": 100.0,
+      "volume_usd": 1321879.73,
+      "volume_display": "$1.3M",
+      "liquidity_usd": 0.0,
+      "signal_strength": "极强否定",
+      "end_date": "2025-12-31T12:00:00Z",
+      "description": "This market will resolve to “Yes” if Keir Starmer ceases to be the Prime Minister of the United Kingdom for any period of time between February 2 and December 31, 2025, 11:59 PM ET. Otherwise, this ma"
+    },
+    {
+      "event_id": "18558",
+      "event_title": "Ukraine election called by...?",
+      "market_id": "523343",
+      "question": "Ukraine election called in 2025?",
+      "yes_probability": 0.0,
+      "no_probability": 100.0,
+      "volume_usd": 982716.69,
+      "volume_display": "$982.7K",
+      "liquidity_usd": 0.0,
+      "signal_strength": "极强否定",
+      "end_date": "2025-12-31T12:00:00Z",
+      "description": "This market will resolve to \"Yes\" if the next Ukrainian presidential election is scheduled in 2025. Otherwise, this market will resolve to \"No\".\n\nThis market is about whether a date for the next Ukrai"
+    },
+    {
+      "event_id": "16167",
+      "event_title": "MicroStrategy sells any Bitcoin by ___ ?",
+      "market_id": "692258",
+      "question": "MicroStrategy sells any Bitcoin by June 30, 2026?",
+      "yes_probability": 2.8,
+      "no_probability": 97.2,
+      "volume_usd": 911847.98,
+      "volume_display": "$911.8K",
+      "liquidity_usd": 39491.68,
+      "signal_strength": "极强否定",
+      "end_date": "2026-07-01T04:00:00Z",
+      "description": "This market will resolve to \"Yes\" if MicroStrategy sells any of its Bitcoin by 11:59 PM ET on the date specified in the title. Otherwise, this market will resolve to \"No\".\n\nThe primary resolution sour"
+    },
+    {
+      "event_id": "17725",
+      "event_title": "Starmer out by...?",
+      "market_id": "666655",
+      "question": "Starmer out by December 31, 2026?",
+      "yes_probability": 55.5,
+      "no_probability": 44.5,
+      "volume_usd": 890073.04,
+      "volume_display": "$890.1K",
+      "liquidity_usd": 42891.67,
+      "signal_strength": "不确定（波动率机会）",
+      "end_date": "2026-12-31T12:00:00Z",
+      "description": "This market will resolve to “Yes” if Keir Starmer ceases to be the Prime Minister of the United Kingdom for any period of time between November 5, 2025, and December 31, 2026, 11:59 PM ET. Otherwise, "
+    },
+    {
+      "event_id": "17725",
+      "event_title": "Starmer out by...?",
+      "market_id": "1359701",
+      "question": "Starmer out by March 31, 2026?",
+      "yes_probability": 0.0,
+      "no_probability": 100.0,
+      "volume_usd": 878483.28,
+      "volume_display": "$878.5K",
+      "liquidity_usd": 0.0,
+      "signal_strength": "极强否定",
+      "end_date": "2026-06-30T12:00:00Z",
+      "description": "This market will resolve to “Yes” if Keir Starmer ceases to be the Prime Minister of the United Kingdom for any period of time between market creation and March 31, 2026, 11:59 PM ET. Otherwise, this "
+    },
+    {
+      "event_id": "16423",
+      "event_title": "UK election called by...?",
+      "market_id": "517548",
+      "question": "Will the next UK election be called by March 31?",
+      "yes_probability": 0.0,
+      "no_probability": 100.0,
+      "volume_usd": 577431.03,
+      "volume_display": "$577.4K",
+      "liquidity_usd": 0.0,
+      "signal_strength": "极强否定",
+      "end_date": "2025-03-31T12:00:00Z",
+      "description": "This market will resolve to \"Yes\" if the date of the next UK general election is declared by March 31, 2025, 11:59 PM ET. Otherwise, this market will resolve to \"No\".\n\nFor this market to resolve to \"Y"
+    },
+    {
+      "event_id": "16183",
+      "event_title": "Kraken IPO by ___ ?",
+      "market_id": "678876",
+      "question": "Kraken IPO by March 31, 2026?",
+      "yes_probability": 0.0,
+      "no_probability": 100.0,
+      "volume_usd": 545638.92,
+      "volume_display": "$545.6K",
+      "liquidity_usd": 0.0,
+      "signal_strength": "极强否定",
+      "end_date": "2026-04-01T04:00:00Z",
+      "description": "This market will resolve to \"Yes\" if Kraken completes an Initial Public Offering (IPO) by the listed date ET, as confirmed by official company announcements and credible news sources. Otherwise, this "
+    }
+  ],
+  "smart_money_signals": [
+    {
+      "question": "MicroStrategy sells any Bitcoin in 2025?",
+      "yes_probability": 0.0,
+      "volume": "$18.0M",
+      "signal_reasons": [
+        "交易量 $18.0M 远超平均值 $2.9M",
+        "概率高度倾向 No(100.0%)，市场有强烈共识"
+      ],
+      "alert_level": "高"
+    },
+    {
+      "question": "Starmer out by February 28, 2026?",
+      "yes_probability": 0.0,
+      "volume": "$5.9M",
+      "signal_reasons": [
+        "概率高度倾向 No(100.0%)，市场有强烈共识"
+      ],
+      "alert_level": "中"
+    },
+    {
+      "question": "MicroStrategy sells any Bitcoin by March 31, 2026?",
+      "yes_probability": 0.0,
+      "volume": "$2.7M",
+      "signal_reasons": [
+        "概率高度倾向 No(100.0%)，市场有强烈共识"
+      ],
+      "alert_level": "中"
+    },
+    {
+      "question": "Ukraine recognizes Russian sovereignty over its territory by December 31, 2025?",
+      "yes_probability": 0.0,
+      "volume": "$2.1M",
+      "signal_reasons": [
+        "概率高度倾向 No(100.0%)，市场有强烈共识"
+      ],
+      "alert_level": "中"
+    },
+    {
+      "question": "Macron out in 2025?",
+      "yes_probability": 0.0,
+      "volume": "$1.4M",
+      "signal_reasons": [
+        "概率高度倾向 No(100.0%)，市场有强烈共识"
+      ],
+      "alert_level": "中"
+    },
+    {
+      "question": "Starmer out in 2025?",
+      "yes_probability": 0.0,
+      "volume": "$1.3M",
+      "signal_reasons": [
+        "概率高度倾向 No(100.0%)，市场有强烈共识"
+      ],
+      "alert_level": "中"
+    },
+    {
+      "question": "Ukraine election called in 2025?",
+      "yes_probability": 0.0,
+      "volume": "$982.7K",
+      "signal_reasons": [
+        "概率高度倾向 No(100.0%)，市场有强烈共识"
+      ],
+      "alert_level": "中"
+    },
+    {
+      "question": "MicroStrategy sells any Bitcoin by June 30, 2026?",
+      "yes_probability": 2.8,
+      "volume": "$911.8K",
+      "signal_reasons": [
+        "概率高度倾向 No(97.2%)，市场有强烈共识"
+      ],
+      "alert_level": "中"
+    },
+    {
+      "question": "Starmer out by March 31, 2026?",
+      "yes_probability": 0.0,
+      "volume": "$878.5K",
+      "signal_reasons": [
+        "概率高度倾向 No(100.0%)，市场有强烈共识"
+      ],
+      "alert_level": "中"
+    },
+    {
+      "question": "Will the next UK election be called by March 31?",
+      "yes_probability": 0.0,
+      "volume": "$577.4K",
+      "signal_reasons": [
+        "概率高度倾向 No(100.0%)，市场有强烈共识"
+      ],
+      "alert_level": "中"
+    },
+    {
+      "question": "Kraken IPO by March 31, 2026?",
+      "yes_probability": 0.0,
+      "volume": "$545.6K",
+      "signal_reasons": [
+        "概率高度倾向 No(100.0%)，市场有强烈共识"
+      ],
+      "alert_level": "中"
+    },
+    {
+      "question": "MicroStrategy sells any Bitcoin in 2025?",
+      "yes_probability": 0.0,
+      "volume": "$18.0M",
+      "signal_reasons": [
+        "交易量 $18.0M 远超平均值 $2.9M",
+        "概率高度倾向 No(100.0%)，市场有强烈共识"
+      ],
+      "alert_level": "高"
+    },
+    {
+      "question": "Starmer out by February 28, 2026?",
+      "yes_probability": 0.0,
+      "volume": "$5.9M",
+      "signal_reasons": [
+        "概率高度倾向 No(100.0%)，市场有强烈共识"
+      ],
+      "alert_level": "中"
+    },
+    {
+      "question": "MicroStrategy sells any Bitcoin by March 31, 2026?",
+      "yes_probability": 0.0,
+      "volume": "$2.7M",
+      "signal_reasons": [
+        "概率高度倾向 No(100.0%)，市场有强烈共识"
+      ],
+      "alert_level": "中"
+    },
+    {
+      "question": "Ukraine recognizes Russian sovereignty over its territory by December 31, 2025?",
+      "yes_probability": 0.0,
+      "volume": "$2.1M",
+      "signal_reasons": [
+        "概率高度倾向 No(100.0%)，市场有强烈共识"
+      ],
+      "alert_level": "中"
+    },
+    {
+      "question": "Macron out in 2025?",
+      "yes_probability": 0.0,
+      "volume": "$1.4M",
+      "signal_reasons": [
+        "概率高度倾向 No(100.0%)，市场有强烈共识"
+      ],
+      "alert_level": "中"
+    },
+    {
+      "question": "Starmer out in 2025?",
+      "yes_probability": 0.0,
+      "volume": "$1.3M",
+      "signal_reasons": [
+        "概率高度倾向 No(100.0%)，市场有强烈共识"
+      ],
+      "alert_level": "中"
+    },
+    {
+      "question": "Ukraine election called in 2025?",
+      "yes_probability": 0.0,
+      "volume": "$982.7K",
+      "signal_reasons": [
+        "概率高度倾向 No(100.0%)，市场有强烈共识"
+      ],
+      "alert_level": "中"
+    },
+    {
+      "question": "MicroStrategy sells any Bitcoin by June 30, 2026?",
+      "yes_probability": 2.8,
+      "volume": "$911.8K",
+      "signal_reasons": [
+        "概率高度倾向 No(97.2%)，市场有强烈共识"
+      ],
+      "alert_level": "中"
+    },
+    {
+      "question": "Starmer out by March 31, 2026?",
+      "yes_probability": 0.0,
+      "volume": "$878.5K",
+      "signal_reasons": [
+        "概率高度倾向 No(100.0%)，市场有强烈共识"
+      ],
+      "alert_level": "中"
+    },
+    {
+      "question": "Will the next UK election be called by March 31?",
+      "yes_probability": 0.0,
+      "volume": "$577.4K",
+      "signal_reasons": [
+        "概率高度倾向 No(100.0%)，市场有强烈共识"
+      ],
+      "alert_level": "中"
+    },
+    {
+      "question": "Kraken IPO by March 31, 2026?",
+      "yes_probability": 0.0,
+      "volume": "$545.6K",
+      "signal_reasons": [
+        "概率高度倾向 No(100.0%)，市场有强烈共识"
+      ],
+      "alert_level": "中"
+    },
+    {
+      "question": "MicroStrategy sells any Bitcoin in 2025?",
+      "yes_probability": 0.0,
+      "volume": "$18.0M",
+      "signal_reasons": [
+        "交易量 $18.0M 远超平均值 $2.9M",
+        "概率高度倾向 No(100.0%)，市场有强烈共识"
+      ],
+      "alert_level": "高"
+    },
+    {
+      "question": "Starmer out by February 28, 2026?",
+      "yes_probability": 0.0,
+      "volume": "$5.9M",
+      "signal_reasons": [
+        "概率高度倾向 No(100.0%)，市场有强烈共识"
+      ],
+      "alert_level": "中"
+    },
+    {
+      "question": "MicroStrategy sells any Bitcoin by March 31, 2026?",
+      "yes_probability": 0.0,
+      "volume": "$2.7M",
+      "signal_reasons": [
+        "概率高度倾向 No(100.0%)，市场有强烈共识"
+      ],
+      "alert_level": "中"
+    },
+    {
+      "question": "Ukraine recognizes Russian sovereignty over its territory by December 31, 2025?",
+      "yes_probability": 0.0,
+      "volume": "$2.1M",
+      "signal_reasons": [
+        "概率高度倾向 No(100.0%)，市场有强烈共识"
+      ],
+      "alert_level": "中"
+    },
+    {
+      "question": "Macron out in 2025?",
+      "yes_probability": 0.0,
+      "volume": "$1.4M",
+      "signal_reasons": [
+        "概率高度倾向 No(100.0%)，市场有强烈共识"
+      ],
+      "alert_level": "中"
+    },
+    {
+      "question": "Starmer out in 2025?",
+      "yes_probability": 0.0,
+      "volume": "$1.3M",
+      "signal_reasons": [
+        "概率高度倾向 No(100.0%)，市场有强烈共识"
+      ],
+      "alert_level": "中"
+    },
+    {
+      "question": "Ukraine election called in 2025?",
+      "yes_probability": 0.0,
+      "volume": "$982.7K",
+      "signal_reasons": [
+        "概率高度倾向 No(100.0%)，市场有强烈共识"
+      ],
+      "alert_level": "中"
+    },
+    {
+      "question": "MicroStrategy sells any Bitcoin by June 30, 2026?",
+      "yes_probability": 2.8,
+      "volume": "$911.8K",
+      "signal_reasons": [
+        "概率高度倾向 No(97.2%)，市场有强烈共识"
+      ],
+      "alert_level": "中"
+    },
+    {
+      "question": "Starmer out by March 31, 2026?",
+      "yes_probability": 0.0,
+      "volume": "$878.5K",
+      "signal_reasons": [
+        "概率高度倾向 No(100.0%)，市场有强烈共识"
+      ],
+      "alert_level": "中"
+    },
+    {
+      "question": "Will the next UK election be called by March 31?",
+      "yes_probability": 0.0,
+      "volume": "$577.4K",
+      "signal_reasons": [
+        "概率高度倾向 No(100.0%)，市场有强烈共识"
+      ],
+      "alert_level": "中"
+    },
+    {
+      "question": "Kraken IPO by March 31, 2026?",
+      "yes_probability": 0.0,
+      "volume": "$545.6K",
+      "signal_reasons": [
+        "概率高度倾向 No(100.0%)，市场有强烈共识"
+      ],
+      "alert_level": "中"
+    }
+  ],
+  "asset_suggestions": []
+}
