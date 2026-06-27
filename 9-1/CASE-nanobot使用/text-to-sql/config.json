@@ -1,0 +1,20 @@
+{
+  "agents": {
+    "defaults": {
+      "workspace": ".",
+      "model": "qwen-plus",
+      "max_tokens": 4096,
+      "context_window_tokens": 32768,
+      "temperature": 0,
+      "max_tool_iterations": 20,
+      "timezone": "Asia/Shanghai"
+    }
+  },
+  "providers": {
+    "dashscope": { "api_key": "" }
+  },
+  "tools": {
+    "web": { "enable": false },
+    "exec": { "enable": true, "timeout": 30 }
+  }
+}

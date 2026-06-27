@@ -70,6 +70,8 @@ def code_to_standard(raw_code):
             return code + '.SH'
         elif code.startswith(('0', '3')):
             return code + '.SZ'
+        elif code.startswith(('89', '92')):
+            return code + '.BJ'
     return None
 
 
@@ -120,6 +122,16 @@ def load_broker_csv(csv_paths):
         if merged[col].dtype == object:
             merged[col] = merged[col].astype(str).str.strip()
 
+    # 兼容不同券商的字段名
+    if '操作' in merged.columns and '买卖方向' not in merged.columns:
+        merged.rename(columns={'操作': '买卖方向'}, inplace=True)
+    if '成交均价' in merged.columns and '成交价格' not in merged.columns:
+        merged.rename(columns={'成交均价': '成交价格'}, inplace=True)
+    if '手续费' in merged.columns and '佣金' not in merged.columns:
+        merged.rename(columns={'手续费': '佣金'}, inplace=True)
+    if '其他杂费' in merged.columns and '过户费' not in merged.columns:
+        merged.rename(columns={'其他杂费': '过户费'}, inplace=True)
+
     merged['证券代码'] = merged['证券代码'].astype(str).str.strip()
     merged['成交日期'] = pd.to_datetime(merged['成交日期'].astype(str).str.strip(), errors='coerce')
     merged['买卖方向'] = merged['买卖方向'].astype(str).str.strip()
@@ -127,6 +139,11 @@ def load_broker_csv(csv_paths):
     for col in ['成交数量', '成交价格', '成交金额', '佣金', '印花税', '过户费', '结算费']:
         if col in merged.columns:
             merged[col] = pd.to_numeric(merged[col], errors='coerce').fillna(0)
+
+    # 归一化: 成交数量和成交金额统一取绝对值, 买卖方向由"买卖方向"字段决定
+    for col in ['成交数量', '成交金额']:
+        if col in merged.columns:
+            merged[col] = merged[col].abs()
 
     # 转为标准代码, 过滤不支持的证券(如港股)
     merged['标准代码'] = merged['证券代码'].apply(code_to_standard)
@@ -195,6 +212,7 @@ def analyze_by_stock(trades_df):
             '买入量': int(buy_volume), '卖出量': int(sell_volume),
             '未平仓': int(remaining),
             '均买价': avg_buy, '均卖价': avg_sell,
+            '持仓成本': avg_buy * remaining if remaining > 0 else 0,
             '佣金': commission, '印花税': stamp_tax,
             '过户费': transfer_fee, '总成本': total_cost,
             '已实现盈亏': realized_pnl,
@@ -204,7 +222,14 @@ def analyze_by_stock(trades_df):
 
     result_df = pd.DataFrame(results)
     if not result_df.empty:
-        result_df = result_df.sort_values('买入金额', ascending=False)
+        # 持仓中(未平仓>0)排最前,按持仓成本降序; 已平仓按末次交易降序
+        result_df['_sort_key1'] = (result_df['未平仓'] > 0).astype(int)
+        result_df['_sort_key2'] = result_df.apply(
+            lambda r: r['持仓成本'] if r['未平仓'] > 0 else -r['末次交易'].timestamp(), axis=1
+        )
+        result_df = result_df.sort_values(
+            ['_sort_key1', '_sort_key2'], ascending=[False, False]
+        ).drop(columns=['_sort_key1', '_sort_key2'])
 
     return result_df
 
@@ -462,14 +487,16 @@ def generate_trade_analysis_report(trades_df, stock_df, nav_series, metrics,
     # -- Ch2: 个股盈亏分析 --
     ch2 = '<h3>个股交易明细</h3>'
     ch2 += '<table><tr><th>证券名称</th><th>买入金额</th><th>卖出金额</th>'
-    ch2 += '<th>未平仓</th><th>已实现盈亏</th><th>总成本</th></tr>'
+    ch2 += '<th>未平仓</th><th>持仓成本</th><th>已实现盈亏</th><th>总成本</th></tr>'
     for _, row in stock_df.iterrows():
         pnl_str = f'{row["已实现盈亏"]:+,.0f}' if pd.notna(row['已实现盈亏']) else '持仓中'
         pnl_color = '#27ae60' if pd.notna(row['已实现盈亏']) and row['已实现盈亏'] >= 0 else '#e74c3c'
+        hold_cost = f'{row["持仓成本"]:,.0f}' if row['持仓成本'] > 0 else '-'
         ch2 += f'<tr><td>{row["证券名称"]}</td>'
         ch2 += f'<td>{row["买入金额"]:,.0f}</td>'
         ch2 += f'<td>{row["卖出金额"]:,.0f}</td>'
         ch2 += f'<td>{row["未平仓"]}</td>'
+        ch2 += f'<td>{hold_cost}</td>'
         ch2 += f'<td style="color:{pnl_color};font-weight:bold">{pnl_str}</td>'
         ch2 += f'<td>{row["总成本"]:,.0f}</td></tr>'
     ch2 += '</table>'
@@ -707,16 +734,17 @@ def main():
     stock_df = analyze_by_stock(trades_df)
 
     print(f'\n  {"证券名称":8s}  {"买入金额":>12s}  {"卖出金额":>12s}  '
-          f'{"未平仓":>6s}  {"已实现盈亏":>12s}  {"总成本":>8s}')
-    print(f'  {"-"*8}  {"-"*12}  {"-"*12}  {"-"*6}  {"-"*12}  {"-"*8}')
+          f'{"未平仓":>6s}  {"持仓成本":>10s}  {"已实现盈亏":>12s}  {"总成本":>8s}')
+    print(f'  {"-"*8}  {"-"*12}  {"-"*12}  {"-"*6}  {"-"*10}  {"-"*12}  {"-"*8}')
 
     total_realized = 0
     for _, row in stock_df.iterrows():
         pnl_str = f'{row["已实现盈亏"]:>+12,.0f}' if pd.notna(row['已实现盈亏']) else '    持仓中   '
+        hold_str = f'{row["持仓成本"]:>10,.0f}' if row['持仓成本'] > 0 else '         -'
         if pd.notna(row['已实现盈亏']):
             total_realized += row['已实现盈亏']
         print(f'  {row["证券名称"]:8s}  {row["买入金额"]:>12,.0f}  {row["卖出金额"]:>12,.0f}  '
-              f'{row["未平仓"]:>6}  {pnl_str}  {row["总成本"]:>8,.0f}')
+              f'{row["未平仓"]:>6}  {hold_str}  {pnl_str}  {row["总成本"]:>8,.0f}')
 
     print(f'\n  已实现盈亏合计: {total_realized:+,.0f} 元')
 

@@ -9,6 +9,8 @@ config.yaml
 OpenConfig.yaml
 gotify_push.py
 cos_config.yaml
-outputs
+**/outputs
 chan_features_cache.csv
 chan_ml_model.pkl
+**/output
+**/.nanobot

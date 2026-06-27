@@ -1,0 +1,2 @@
+[2026-04-11 09:18] User requested贵州茅台投研报告; assistant initiated五步法框架分析, gathered real-time data including: (1) stock price at 1453.96 yuan as of Apr 9, (2) 2026-03-31 price hike to 1269 yuan/bottle, (3) 2025Q3 revenue 39.06B yuan (+0.56%), net profit 19.22B yuan (+0.48%), (4) pyramid product matrix (core Moutai base,精品/生肖 mid-tier, aged/cultural top-tier), (5) channel reform progress (direct sales share 44%, iMoutai users >80M), (6) catalysts: Q1 report due Apr 25, annual report Apr 17, and Spring Festival sales growth confirmed.
+

@@ -311,13 +311,15 @@ def generate_plus_report(trades_df, stock_df, nav_series, metrics,
     # -- Ch3: 个股盈亏分析 --
     ch3 = '<h3>个股交易明细</h3>'
     ch3 += '<table><tr><th>证券名称</th><th>买入金额</th><th>卖出金额</th>'
-    ch3 += '<th>未平仓</th><th>已实现盈亏</th><th>总成本</th></tr>'
+    ch3 += '<th>未平仓</th><th>持仓成本</th><th>已实现盈亏</th><th>总成本</th></tr>'
     for _, row in stock_df.iterrows():
         pnl_str = f'{row["已实现盈亏"]:+,.0f}' if pd.notna(row['已实现盈亏']) else '持仓中'
         pnl_color = '#27ae60' if pd.notna(row['已实现盈亏']) and row['已实现盈亏'] >= 0 else '#e74c3c'
+        hold_cost = f'{row["持仓成本"]:,.0f}' if row['持仓成本'] > 0 else '-'
         ch3 += f'<tr><td>{row["证券名称"]}</td>'
         ch3 += f'<td>{row["买入金额"]:,.0f}</td><td>{row["卖出金额"]:,.0f}</td>'
         ch3 += f'<td>{row["未平仓"]}</td>'
+        ch3 += f'<td>{hold_cost}</td>'
         ch3 += f'<td style="color:{pnl_color};font-weight:bold">{pnl_str}</td>'
         ch3 += f'<td>{row["总成本"]:,.0f}</td></tr>'
     ch3 += '</table>'
@@ -383,7 +385,8 @@ def main():
     os.makedirs(OUTPUT_DIR, exist_ok=True)
 
     csv_files = [
-        '历史成交_cy_260101-260325.csv',
+        # '历史成交_cy_260101-260325.csv',
+        '20260614.csv'
     ]
 
     print(f'\n  待加载文件:')
