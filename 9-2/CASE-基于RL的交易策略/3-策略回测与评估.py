@@ -317,7 +317,7 @@ if __name__ == '__main__':
     print("Ethan 在样本外数据上回测 DQN 择时策略")
     print("=" * 60)
 
-    STOCK_CODE = '510050.SH'
+    STOCK_CODE = '600184.SH'
     TEST_START = '2025-07-01'
     TEST_END = '2026-04-09'
     MODEL_PATH = 'models/dqn_best.pth'

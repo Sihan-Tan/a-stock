@@ -376,8 +376,8 @@ if __name__ == '__main__':
     print("=" * 60)
 
     # 加载训练数据 (使用前几年作为训练集)
-    STOCK_CODE = '510050.SH'
-    TRAIN_START = '2022-01-01'
+    STOCK_CODE = '600184.SH'
+    TRAIN_START = '2024-01-01'
     TRAIN_END = '2025-06-30'
 
     print(f"\n[1] 加载训练数据: {STOCK_CODE}")

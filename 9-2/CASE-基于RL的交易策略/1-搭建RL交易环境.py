@@ -298,7 +298,7 @@ if __name__ == '__main__':
     print("=" * 60)
 
     # 加载数据: 上证50ETF
-    STOCK_CODE = '510050.SH'
+    STOCK_CODE = '600184.SH'
     START_DATE = '2022-01-01'
     END_DATE = '2026-04-09'
 

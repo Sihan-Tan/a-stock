@@ -469,8 +469,8 @@ if __name__ == '__main__':
     print("=" * 60)
 
     # 加载数据
-    STOCK_CODE = '510050.SH'
-    START_DATE = '2023-01-01'
+    STOCK_CODE = '600184.SH'
+    START_DATE = '2024-01-01'
     END_DATE = '2026-04-09'
     TOTAL_ORDER = 100_000  # 10万股
 
