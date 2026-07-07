@@ -1,0 +1,10 @@
+# 行情
+xtquant
+pandas>=2.0.0
+numpy>=1.24.0
+
+# MySQL
+pymysql>=1.1.0
+
+# 工具
+python-dotenv>=1.0.0

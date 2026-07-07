@@ -1,0 +1,17 @@
+# 数据
+pymysql>=1.1.0
+pandas>=2.0.0
+numpy>=1.24.0
+
+# 工作流
+langgraph>=0.2.50
+
+# 调度
+apscheduler>=3.10.0
+chinese-calendar>=1.10.0
+
+# 推送
+requests>=2.31.0
+
+# 工具
+python-dotenv>=1.0.0
