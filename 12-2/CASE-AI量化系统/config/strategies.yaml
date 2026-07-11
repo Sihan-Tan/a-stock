@@ -1,0 +1,15 @@
+# 实盘监控 -- 策略路由表 (由 /live 页面写入)
+# 修改后, 在页面点 '应用策略配置' 即可热加载, 无需重启
+# MACD: macd_5min=5分钟K(日内) / macd_1d=日K(12/26/9); 另有 dual_ma_5min / ma20_hold / multi_factor_top / dragon_picker / grid_classic
+
+default: macd_1d
+per_stock:
+  600519.SH: ma20_hold
+  688981.SH: dragon_picker
+  300750.SZ: macd_1d
+  513100.SH: turtle_donchian
+  000001.SZ: boll_revert
+  002241.SZ: dragon_picker
+  300059.SZ: dragon_picker
+  300014.SZ: dragon_picker
+  601991.SH: boll_revert

@@ -1,0 +1,4 @@
+# CASE-A: Brinson 归因 + 交割单加载
+# 依赖: 数据处理 + (可选) miniQMT/xtquant 接真实数据
+pandas>=2.0.0
+numpy>=1.24.0

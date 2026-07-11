@@ -1,0 +1,4 @@
+# CASE-B: Walk-Forward 过拟合检测
+# 依赖: 数据处理 + 滚动窗口 (纯算法, 不需要 ML 库)
+pandas>=2.0.0
+numpy>=1.24.0

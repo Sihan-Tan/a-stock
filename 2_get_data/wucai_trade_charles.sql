@@ -20,15 +20,19 @@ CREATE TABLE IF NOT EXISTS stock_list (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='A股股票代码表';
 
 
--- 日K线数据表 (核心行情数据，数据量最大)
+-- 日K线数据表 (核心行情数据，双复权，数据量最大)
 CREATE TABLE IF NOT EXISTS trade_stock_daily (
     id INT AUTO_INCREMENT PRIMARY KEY,
     stock_code VARCHAR(20) NOT NULL COMMENT '股票代码',
     trade_date DATE NOT NULL COMMENT '交易日期',
-    open_price DECIMAL(10,2) COMMENT '开盘价',
-    high_price DECIMAL(10,2) COMMENT '最高价',
-    low_price DECIMAL(10,2) COMMENT '最低价',
+    open_price DECIMAL(10,2) COMMENT '开盘价(前复权)',
+    high_price DECIMAL(10,2) COMMENT '最高价(前复权)',
+    low_price DECIMAL(10,2) COMMENT '最低价(前复权)',
     close_price DECIMAL(10,2) COMMENT '收盘价(前复权)',
+    open_price_b DECIMAL(10,2) COMMENT '开盘价(后复权)',
+    high_price_b DECIMAL(10,2) COMMENT '最高价(后复权)',
+    low_price_b DECIMAL(10,2) COMMENT '最低价(后复权)',
+    close_price_b DECIMAL(10,2) COMMENT '收盘价(后复权)',
     volume BIGINT COMMENT '成交量(股)',
     amount DECIMAL(20,2) COMMENT '成交额(元)',
     turnover_rate DECIMAL(10,4) COMMENT '换手率',
@@ -36,7 +40,7 @@ CREATE TABLE IF NOT EXISTS trade_stock_daily (
     UNIQUE KEY idx_stock_daily_code_date (stock_code, trade_date),
     KEY idx_stock_daily_code (stock_code),
     KEY idx_stock_daily_date (trade_date)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='日K线数据';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='日K线数据(双复权)';
 
 -- 新闻事件表
 CREATE TABLE IF NOT EXISTS trade_stock_news (
